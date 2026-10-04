@@ -1,0 +1,35 @@
+[package]
+name = "argon2-verus"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+publish = ["crates-io"]
+license = "MIT"
+description = "Dependency-free Argon2 password hashing with same-source Verus verification of selected core functions"
+repository = "https://github.com/optiklab/argon2-verus"
+homepage = "https://github.com/optiklab/argon2-verus"
+documentation = "https://docs.rs/argon2-verus"
+keywords = ["argon2", "password-hashing", "crypto", "kdf", "verus"]
+categories = ["cryptography"]
+readme = "README.md"
+include = ["/src/**", "/specs/**", "/proofs/**", "/verus/*.rs", "/verus/*.md", "/tools/verify.sh", "/tests/**", "/README.md", "/SECURITY.md", "/CHANGELOG.md", "/LICENSE-MIT", "/NOTICE", "/Cargo.toml", "/rustfmt.toml"]
+
+[dependencies]
+# BLAKE2b, Argon2 and runtime CPU dispatch are implemented in this crate.
+
+[dev-dependencies]
+
+[features]
+default = ["alloc"]
+alloc = []
+std = ["alloc"]
+
+[lib]
+name = "argon2_verus"
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(verus_keep_ghost)'] }

@@ -1,0 +1,15 @@
+/target
+*.long-type-*.txt
+/.verus-log/
+/verus/.verus-log/
+/tools/.export-*/
+/tools/export_verified
+/tools/export_verified_tests
+/tools/export_verified.rs
+/tools/block_export.rs
+/tools/rejected_proof.rs
+/tools/rustfmt.toml
+/.env
+/.env.*
+/.cargo/credentials
+/.cargo/credentials.toml
