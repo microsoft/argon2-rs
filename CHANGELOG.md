@@ -15,6 +15,10 @@
 	files.
 - Proved production streaming continuation against a block-oriented digest model,
 	binary partition composition/independence, and unkeyed BLAKE2b initialization.
-	Public multipart wrapper, H-prime and hash composition remain unproved.
+	H-prime and hash composition remain unproved.
+- Proved real public BLAKE2b methods and arbitrary finite multipart/prefixed
+	composition through ghost-only closed state views, preserving private fields
+	and production cleanup. Isolated an unresolved H-prime singleton-loop VC
+	outside production and supported gates.
 - RFC 9106 known-answer, backend-agreement, boundary and resource tests.
 - Streamed initial hashing and volatile wiping of owned arena/BLAKE2b storage.

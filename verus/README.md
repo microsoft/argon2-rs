@@ -16,6 +16,7 @@ and proof blocks. This same-source layout requires no executable export step.
 | [blake2b_tables_verified.rs](blake2b_tables_verified.rs) | [../src/blake2b_tables.rs](../src/blake2b_tables.rs) | Production IV/SIGMA and unkeyed digest-length initialization agree with the model. |
 | [blake2b_buffer_verified.rs](blake2b_buffer_verified.rs) | [../src/blake2b_buffer.rs](../src/blake2b_buffer.rs), compression helpers | Buffer append, full-buffer flush/update step, final padding, and digest serialization. |
 | [blake2b_update_verified.rs](blake2b_update_verified.rs) | [../src/blake2b_update.rs](../src/blake2b_update.rs), [../proofs/blake2b_update.rs](../proofs/blake2b_update.rs), buffer helpers | Production update establishes block-prefix semantics and a modeled final digest; binary partition composition and digest independence are proved. |
+| [blake2b_api_verified.rs](blake2b_api_verified.rs) | [../src/blake2b.rs](../src/blake2b.rs), streaming model/helpers | Real public constructor/update/finalize methods and multipart/prefixed wrappers agree with the block-stream model for arbitrary finite part lists under their preconditions. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -44,6 +45,7 @@ VERUS=/path/to/verus
 "$VERUS" verus/blake2b_tables_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/blake2b_buffer_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/blake2b_update_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/blake2b_api_verified.rs --crate-type lib --no-cheating --rlimit 30
 ```
 
 The matching source revision is
@@ -57,7 +59,11 @@ The current strict gate reports **33**, **8**, **11**, **11**, **13**, **21**,
 **18**, and **8 verified, 0 errors**, respectively, for the combined, scalar,
 row, one-column, eight-column, full-G, BLAKE2b-block, and BLAKE2b-table roots.
 The BLAKE2b buffer/update-step/finalize root reports **23 verified, 0 errors**.
-The production update/streaming-composition root reports **39 verified, 0 errors**.
+The production update/streaming-composition root reports **41 verified, 0 errors**.
+The public multipart/prefixed API root reports **47 verified, 0 errors**.
+The parts-prefix definition and bound lemma add two obligations to roots importing
+the streaming proof module. The API root additionally uses ghost-only `cfg_eval`
+to expand nested contracts before `verus_verify`; ordinary Rust erases those attrs.
 The initialization helper adds two obligations to each root importing the tables.
 The shared step-progress lemma adds one obligation to every root, not new G
 or whole-hash coverage.
@@ -101,11 +107,18 @@ uses `spinoff_prover` to isolate solver context, without changing the resource
 limit or adding assumptions. The old diagnostic repro files have been removed.
 Proven G remains unchanged.
 
-These results are conditional on the encoded block model and caller preconditions;
-they do not prove the public constructor/multipart wrapper or a theorem over all
-finite lists of parts. Model fidelity still requires independent human review.
+These results are conditional on the encoded block model and caller preconditions.
+The public constructor/update/finalize methods use a ghost-only closed state view,
+preserving private fields. The real multipart wrapper and private prefixed helper
+prove model agreement for arbitrary finite lists of parts: output parameter 1..=64
+and total message length representable in `u128`. No trusted bodies or assumptions
+were added. Production Drop/wiping remain unchanged and outside the checked
+zeroization scope. Model fidelity still requires independent human review.
 Boundary and partition tests are regression evidence, not the binary theorem's proof.
-The remaining order is public BLAKE2b composition, H-prime, an explicit theorem-domain
+H-prime is not proved. Its latest isolated attempt failed to establish the public
+wrapper's total-byte precondition for a singleton reference in a loop. The failed
+experiment is excluded from production, package contents and gates; no limit was
+raised. The remaining order is H-prime, an explicit theorem-domain
 decision, and only then scalar hash-level composition. A termination or resource
 limit blocker at `--rlimit 30` requires a minimal reproducer and decomposition
 analysis, not assumptions or a larger limit. Every proved slice must pass the
@@ -115,7 +128,7 @@ H-prime, initialization/finalization, and hash traversal are composed and checke
 
 Core leaves and G are integrated into the hash path. Neither same-source
 compilation nor leaf verification proves all hash-loop callers meet these
-preconditions. Complete public BLAKE2b composition, H-prime, H0 composition, the
+preconditions. H-prime, H0 composition, the
 full Argon2 hash loop, SIMD memory safety/equivalence,
 cryptographic security, machine-code timing, and zeroization are outside the
 checked scope. Specification fidelity is a human obligation independent of

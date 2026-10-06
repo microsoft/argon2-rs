@@ -4,6 +4,29 @@ use crate::specs;
 verus! {
 pub type Blake2bUpdateState = (Seq<u64>, u128, Seq<u8>, nat, nat);
 
+#[verifier::opaque]
+pub open spec fn blake2b_parts_prefix(parts: Seq<&[u8]>, completed: nat) -> Seq<u8>
+    recommends completed <= parts.len(),
+    decreases completed,
+{
+    if completed == 0 {
+        Seq::empty()
+    } else {
+        blake2b_parts_prefix(parts, (completed - 1) as nat) + parts[(completed - 1) as int]@
+    }
+}
+
+pub proof fn blake2b_parts_prefix_bound(parts: Seq<&[u8]>, completed: nat, total: nat)
+    requires completed <= total <= parts.len(),
+    ensures blake2b_parts_prefix(parts, completed).len() <= blake2b_parts_prefix(parts, total).len(),
+    decreases total,
+{
+    reveal(blake2b_parts_prefix);
+    if completed < total {
+        blake2b_parts_prefix_bound(parts, completed, (total - 1) as nat);
+    }
+}
+
 pub proof fn blake2b_buffer_append_composition(
     buffer: Seq<u8>, start: int, first: Seq<u8>, second: Seq<u8>,
 )

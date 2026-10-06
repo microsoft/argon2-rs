@@ -7,9 +7,17 @@
 
 use crate::blake2b_tables::initial_h;
 
+#[cfg(verus_keep_ghost)]
+use crate::blake2b_update_model as model;
+#[cfg(verus_keep_ghost)]
+use crate::specs;
+#[cfg(verus_keep_ghost)]
+use vstd::prelude::*;
+
 const BLOCK_BYTES: usize = 128;
 
 /// Streaming BLAKE2b hasher (unkeyed), output length 1..=64 bytes.
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 pub struct Blake2b {
     h: [u64; 8],
     t: u128,
@@ -24,13 +32,44 @@ impl Drop for Blake2b {
     }
 }
 
+#[cfg(verus_keep_ghost)]
+verus! {
 impl Blake2b {
+    pub closed spec fn state(&self) -> (Seq<u64>, u128, Seq<u8>, nat) {
+        (self.h@, self.t, self.buf@, self.buf_len as nat)
+    }
+}
+}
+
+#[cfg_attr(verus_keep_ghost, cfg_eval)]
+#[cfg_attr(verus_keep_ghost, verus_verify)]
+impl Blake2b {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires 1 <= out_len <= 64,
+        ensures result.state().0 == specs::blake2b_initial_h(out_len as nat),
+            result.state().1 == 0, result.state().3 == 0,
+            forall|index: int| 0 <= index < 128 ==> result.state().2[index] == 0,
+    ))]
     pub fn new(out_len: usize) -> Self {
         assert!((1..=64).contains(&out_len), "blake2b output length must be 1..=64");
         let h = initial_h(out_len);
         Self { h, t: 0, buf: [0u8; BLOCK_BYTES], buf_len: 0 }
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        requires old(self).state().3 <= 128,
+            old(self).state().1 as int + old(self).state().3 + data@.len() <= u128::MAX as int,
+        ensures final(self).state().3 <= 128,
+            final(self).state().1 as int + final(self).state().3
+                == old(self).state().1 as int + old(self).state().3 + data@.len(),
+            exists|blocks: nat| model::blake2b_update_semantic_at(
+                (old(self).state().0, old(self).state().1, old(self).state().2, old(self).state().3, 0nat),
+                data@,
+                (final(self).state().0, final(self).state().1, final(self).state().2,
+                    final(self).state().3, data@.len()),
+                blocks,
+            ),
+    ))]
     pub fn update(&mut self, mut data: &[u8]) {
         crate::blake2b_update::update(
             &mut self.h,
@@ -41,16 +80,108 @@ impl Blake2b {
         );
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires self.state().3 <= 128,
+            self.state().1 as int + self.state().3 <= u128::MAX as int,
+        ensures result@ == specs::blake2b_finalize_result(
+            self.state().0, self.state().1, self.state().2, self.state().3),
+    ))]
     pub fn finalize(self) -> [u8; 64] {
         crate::blake2b_buffer::finalize_state(&self.h, self.t, &self.buf, self.buf_len)
     }
 }
 
 /// One-shot BLAKE2b over `parts` (concatenated), with `out_len` in 1..=64.
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires 1 <= out_len <= 64,
+        model::blake2b_parts_prefix(parts@, parts@.len()).len() <= u128::MAX as int,
+    ensures result@ == model::blake2b_stream_digest(
+        specs::blake2b_initial_h(out_len as nat), 0u128,
+        model::blake2b_parts_prefix(parts@, parts@.len()),
+    ),
+))]
 pub fn blake2b(out_len: usize, parts: &[&[u8]]) -> [u8; 64] {
+    blake2b_prefixed(out_len, &[], parts)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires 1 <= out_len <= 64,
+        prefix@.len() + model::blake2b_parts_prefix(parts@, parts@.len()).len() <= u128::MAX as int,
+    ensures result@ == model::blake2b_stream_digest(
+        specs::blake2b_initial_h(out_len as nat), 0u128,
+        prefix@ + model::blake2b_parts_prefix(parts@, parts@.len()),
+    ),
+))]
+fn blake2b_prefixed(out_len: usize, prefix: &[u8], parts: &[&[u8]]) -> [u8; 64] {
     let mut h = Blake2b::new(out_len);
-    for p in parts {
-        h.update(p);
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost initial = (h.state().0, h.state().1, h.state().2, h.state().3, 0nat);
+    }
+    h.update(prefix);
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost mut blocks = choose|completed: nat| model::blake2b_update_semantic_at(
+            initial, prefix@,
+            (h.state().0, h.state().1, h.state().2, h.state().3, prefix@.len()), completed,
+        );
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(model::blake2b_parts_prefix);
+        assert(model::blake2b_parts_prefix(parts@, 0) == Seq::empty());
+    }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant
+            1 <= out_len <= 64,
+            prefix@.len() + model::blake2b_parts_prefix(parts@, parts@.len()).len() <= u128::MAX as int,
+            initial.0 == specs::blake2b_initial_h(out_len as nat),
+            initial.1 == 0, initial.3 == 0, initial.4 == 0,
+            model::blake2b_update_state_valid(initial,
+                prefix@.len() + model::blake2b_parts_prefix(parts@, parts@.len()).len()),
+            h.state().3 <= 128,
+            h.state().1 as int + h.state().3
+                == prefix@.len() + model::blake2b_parts_prefix(parts@, index as nat).len(),
+            model::blake2b_update_semantic_at(initial,
+                prefix@ + model::blake2b_parts_prefix(parts@, index as nat),
+                (h.state().0, h.state().1, h.state().2, h.state().3,
+                    prefix@.len() + model::blake2b_parts_prefix(parts@, index as nat).len()), blocks),
+        decreases parts.len() - index,
+    ))]
+    for index in 0..parts.len() {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost processed = prefix@ + model::blake2b_parts_prefix(parts@, index as nat);
+            let ghost middle = (h.state().0, h.state().1, h.state().2, h.state().3, processed.len());
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(model::blake2b_parts_prefix);
+            model::blake2b_parts_prefix_bound(parts@, (index + 1) as nat, parts@.len());
+        }
+        h.update(parts[index]);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let next_state = (h.state().0, h.state().1, h.state().2, h.state().3, parts@[index as int]@.len());
+            let next_blocks = choose|completed: nat| model::blake2b_update_semantic_at(
+                model::blake2b_update_restart(middle), parts@[index as int]@, next_state, completed,
+            );
+            model::blake2b_update_semantic_compose(
+                initial, processed, parts@[index as int]@, middle, next_state, blocks, next_blocks,
+            );
+            reveal(model::blake2b_parts_prefix);
+            assert(processed + parts@[index as int]@
+                =~= prefix@ + model::blake2b_parts_prefix(parts@, (index + 1) as nat));
+            blocks = blocks + next_blocks;
+        }
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        model::blake2b_update_semantic_finalize(
+            initial, prefix@ + model::blake2b_parts_prefix(parts@, parts@.len()),
+            (h.state().0, h.state().1, h.state().2, h.state().3,
+                prefix@.len() + model::blake2b_parts_prefix(parts@, parts@.len()).len()), blocks,
+        );
     }
     h.finalize()
 }
@@ -146,6 +277,21 @@ mod tests {
                     hasher.update(byte);
                 }
                 assert_eq!(hasher.finalize(), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn multipart_wrapper_matches_concatenation() {
+        for input_len in [0usize, 1, 127, 128, 129, 256, 513] {
+            let input: Vec<u8> = (0..input_len).map(|index| index as u8).collect();
+            for chunk_len in [1usize, 31, 32, 63, 64, 127, 128, 129] {
+                let mut parts: Vec<&[u8]> = input.chunks(chunk_len).collect();
+                parts.insert(0, &[]);
+                parts.push(&[]);
+                for out_len in [1usize, 32, 64] {
+                    assert_eq!(blake2b(out_len, &parts), blake2b(out_len, &[&input]));
+                }
             }
         }
     }
