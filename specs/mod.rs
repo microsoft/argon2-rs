@@ -57,6 +57,55 @@ pub open spec fn rows_are_permuted(before: Seq<[u64; 16]>, after: Seq<[u64; 16]>
         && forall|i: int| 0 <= i < before.len() ==> after[i]@ == permute(before[i]@)
 }
 
+pub open spec fn gather_column(words: Seq<u64>, column: int) -> Seq<u64>
+    recommends words.len() == 128, 0 <= column < 8,
+{
+    Seq::new(16, |i: int| words[16 * (i / 2) + 2 * column + i % 2])
+}
+
+pub open spec fn scatter_column_prefix(
+    before: Seq<u64>,
+    column: int,
+    completed_rows: int,
+    output: Seq<u64>,
+) -> Seq<u64>
+    recommends before.len() == 128, output.len() == 16,
+        0 <= column < 8, 0 <= completed_rows <= 8,
+{
+    Seq::new(128, |i: int| {
+        let row = i / 16;
+        let col = (i % 16) / 2;
+        let half = i % 2;
+        if col == column && row < completed_rows {
+            output[2 * row + half]
+        } else {
+            before[i]
+        }
+    })
+}
+
+pub open spec fn permute_one_column(words: Seq<u64>, column: int) -> Seq<u64>
+    recommends words.len() == 128, 0 <= column < 8,
+{
+    scatter_column_prefix(words, column, 8, permute(gather_column(words, column)))
+}
+
+pub open spec fn permute_columns_prefix(words: Seq<u64>, completed: int) -> Seq<u64>
+    recommends words.len() == 128, 0 <= completed <= 8,
+{
+    Seq::new(128, |i: int| {
+        let row = i / 16;
+        let column = (i % 16) / 2;
+        let half = i % 2;
+        if column < completed {
+            let input = gather_column(words, column);
+            permute(input)[2 * row + half]
+        } else {
+            words[i]
+        }
+    })
+}
+
 pub open spec fn valid_params(lanes: u32, memory: u32, passes: u32) -> bool {
     1 <= lanes <= 0x00ff_ffff && 8 * lanes <= memory && passes >= 1
 }

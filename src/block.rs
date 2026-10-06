@@ -2,6 +2,7 @@
 //! (spec section 3.4 and Appendix A).
 
 use crate::block_g;
+use crate::block_g_columns;
 
 /// A single 1024-byte Argon2 memory block, stored as 128 64-bit words.
 /// 64-byte aligned to avoid cache-line splits on the random-access reads
@@ -55,6 +56,7 @@ impl Block {
 /// Permutation P over 16 64-bit words (Appendix A): one column round
 /// followed by one diagonal round of the modified Blake2b round function.
 #[inline(always)]
+#[cfg(test)]
 fn permute(v: &mut [u64; 16]) {
     *v = crate::block_primitives::permute(*v);
 }
@@ -93,19 +95,8 @@ pub fn fill_block(
     // Rowwise: row i is the contiguous words [16*i, 16*i+16).
     block_g::permute_rows(r.as_chunks_mut::<16>().0);
 
-    // Columnwise: column j takes words 2j + 16k and 2j + 16k + 1, k in 0..8.
-    for j in 0..8 {
-        let mut v = [0u64; 16];
-        for k in 0..8 {
-            v[2 * k] = r[16 * k + 2 * j];
-            v[2 * k + 1] = r[16 * k + 2 * j + 1];
-        }
-        permute(&mut v);
-        for k in 0..8 {
-            r[16 * k + 2 * j] = v[2 * k];
-            r[16 * k + 2 * j + 1] = v[2 * k + 1];
-        }
-    }
+    // Columnwise: each column uses the same permutation P as the row pass.
+    block_g_columns::permute_columns(&mut r);
 
     for i in 0..128 {
         next[i] = tmp[i] ^ r[i];

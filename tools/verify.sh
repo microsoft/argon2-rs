@@ -7,3 +7,5 @@ mkdir -p target/verus
   --out-dir target/verus --rlimit 30 --log-dir target/verus/log
 "$verus_bin" verus/block_g_rows_verified.rs --crate-type lib --no-cheating \
   --rlimit 30
+"$verus_bin" verus/block_g_column_verified.rs --crate-type lib --no-cheating \
+  --rlimit 30
