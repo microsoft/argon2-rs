@@ -109,7 +109,8 @@ required for the production path.
 | [src/block_g.rs](src/block_g.rs) | The production row-wise pass applies P to each of the eight 16-word rows, as specified. |
 | [src/block_g_column.rs](src/block_g_column.rs) and [src/block_g_columns.rs](src/block_g_columns.rs) | One-column gather/P/scatter and the production loop over all eight columns satisfy their contracts. |
 | [src/block_g_fill.rs](src/block_g_fill.rs) | The production scalar G transition over a flat 128-word block, including row/column passes and both XOR stages, matches its sequence model. |
-| [src/blake2b_compress.rs](src/blake2b_compress.rs), [src/blake2b_tables.rs](src/blake2b_tables.rs), and [src/blake2b_buffer.rs](src/blake2b_buffer.rs) | One block-to-state transition, RFC tables, buffer append/flush, update step, and final-block transition. The repeated `update` loop and H-prime are not included. |
+| [src/blake2b_compress.rs](src/blake2b_compress.rs), [src/blake2b_tables.rs](src/blake2b_tables.rs), and [src/blake2b_buffer.rs](src/blake2b_buffer.rs) | One block-to-state transition, RFC tables, buffer append/flush, update step, and final-block transition. |
+| [src/blake2b_update.rs](src/blake2b_update.rs), [proofs/blake2b_update.rs](proofs/blake2b_update.rs) | The production offset loop terminates safely, conserves byte accounting, and follows a finite trace of model update steps; not full RFC streaming semantics or partition independence. |
 | [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, and index-alpha mapping agree with their contracts; specified bounds and arithmetic safety hold under their preconditions. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
@@ -127,6 +128,9 @@ The BLAKE2b buffer root additionally reports **21 verified, 0 errors** for
 append, full-buffer flush/update step, padding, final-block serialization,
 and positive step progress/byte-count conservation. The shared progress lemma
 adds one obligation to every root; this does not expand their hash-level scope.
+The new same-source [verus/blake2b_update_verified.rs](verus/blake2b_update_verified.rs)
+root reports **27 verified, 0 errors** for the production repeated update loop
+and its modular trace lemmas.
 There are 11 executable leaf functions; the check count includes proof helpers.
 Counts are verifier
 checks, not coverage percentages. Mathematical definitions live in
@@ -137,8 +141,9 @@ Cargo library, as are the parameter, geometry, predecessor, addressing-mode,
 and reference-index leaves.
 Compiling or calling a verified leaf does not establish
 that every caller satisfies its preconditions. BLAKE2b proof slices cover one
-block transition and individual buffer/update-step/finalize helpers, but do not
-prove the repeated `update` loop, H-prime, or H0 composition. The full hash loop,
+block transition, buffer/update-step/finalize helpers, and the repeated update
+loop against a finite model-step trace. They do not yet prove RFC streaming
+equivalence, partition independence, H-prime, or H0 composition. The full hash loop,
 caller invariants, SIMD equivalence and memory safety, permutation bijectivity,
 cryptographic security, timing, and zeroization are not established
 by these proofs. Specification fidelity to the RFC remains a separate human

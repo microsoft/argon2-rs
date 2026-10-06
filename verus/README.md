@@ -15,6 +15,7 @@ and proof blocks. This same-source layout requires no executable export step.
 | [blake2b_compress_verified.rs](blake2b_compress_verified.rs) | [../src/blake2b_compress.rs](../src/blake2b_compress.rs), [../src/blake2b_tables.rs](../src/blake2b_tables.rs) | One BLAKE2b 128-byte block-to-chaining-state transition, including little-endian decode, IV/counter/final flag, 12 rounds, and state fold. |
 | [blake2b_tables_verified.rs](blake2b_tables_verified.rs) | [../src/blake2b_tables.rs](../src/blake2b_tables.rs) | Production IV and SIGMA constructors match the fixed model tables. |
 | [blake2b_buffer_verified.rs](blake2b_buffer_verified.rs) | [../src/blake2b_buffer.rs](../src/blake2b_buffer.rs), compression helpers | Buffer append, full-buffer flush/update step, final padding, and digest serialization. |
+| [blake2b_update_verified.rs](blake2b_update_verified.rs) | [../src/blake2b_update.rs](../src/blake2b_update.rs), [../proofs/blake2b_update.rs](../proofs/blake2b_update.rs), buffer helpers | Production offset loop: termination, bounds, byte accounting, and a finite trace of model update steps. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -42,6 +43,7 @@ VERUS=/path/to/verus
 "$VERUS" verus/blake2b_compress_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/blake2b_tables_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/blake2b_buffer_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/blake2b_update_verified.rs --crate-type lib --no-cheating --rlimit 30
 ```
 
 The matching source revision is
@@ -51,10 +53,13 @@ its BUILD.md with the pinned Rust toolchain and matching Z3, then set `VERUS`
 to the resulting executable. Do not infer a downloadable release URL from the
 version string alone. Build Verus in a separate checkout and shell so its Cargo
 wrapper does not replace the ordinary toolchain used for this crate.
-The current strict gate reports **32**, **7**, **10**, **10**, **12**, **20**,
-**15**, and **5 verified, 0 errors**, respectively, for the combined, scalar,
+The current strict gate reports **33**, **8**, **11**, **11**, **13**, **21**,
+**16**, and **6 verified, 0 errors**, respectively, for the combined, scalar,
 row, one-column, eight-column, full-G, BLAKE2b-block, and BLAKE2b-table roots.
-The BLAKE2b buffer/update-step/finalize root reports **20 verified, 0 errors**.
+The BLAKE2b buffer/update-step/finalize root reports **21 verified, 0 errors**.
+The production offset-update root reports **27 verified, 0 errors**.
+The shared step-progress lemma adds one obligation to every root, not new G
+or whole-hash coverage.
 Counts are verifier obligations, not function or coverage counts.
 Require a successful exit and a positive verification summary with zero errors
 for each root. Compile-only output or expansion output is not proof evidence.
@@ -78,13 +83,29 @@ arithmetic/bounds safety under each function's preconditions. Rotation requires
 The row pass, one-column helper, eight-column loop, and complete scalar G
 composition are verified as separate, composing slices. BLAKE2b roots prove
 one block-to-chaining-state transition, RFC tables, buffer append/flush, one
-update step, and final-block padding/serialization. The repeated `update` loop
-is not yet verified; its suffix-continuation model still has unresolved
-subrange/recommendation and termination obligations.
+update step, and final-block padding/serialization. The production repeated
+`update` loop now proves termination, arithmetic/bounds safety, byte accounting,
+and existence of a finite trace of model update steps. Its preconditions require
+a valid buffer length and a total byte count representable in `u128`.
+The whole model transition and indexed edge predicate are opaque; one-step
+validity and pointwise prefix/final-edge lemmas control unfolding. The helper
+uses `spinoff_prover` to isolate solver context, without changing the resource
+limit or adding assumptions. The old diagnostic repro files have been removed.
+Proven G remains unchanged.
+
+RFC streaming equivalence and partition independence are not established by
+the trace theorem. Boundary and partition tests are regression evidence only.
+The remaining order is streaming semantic composition, H-prime, an explicit theorem-domain
+decision, and only then scalar hash-level composition. A termination or resource
+limit blocker at `--rlimit 30` requires a minimal reproducer and decomposition
+analysis, not assumptions or a larger limit. Every proved slice must pass the
+standalone `--no-cheating` gate and Cargo tests before synchronization into Edge.
+The theorem about the successfully returned Argon2 tag remains incomplete until
+H-prime, initialization/finalization, and hash traversal are composed and checked.
 
 Core leaves and G are integrated into the hash path. Neither same-source
 compilation nor leaf verification proves all hash-loop callers meet these
-preconditions. The repeated BLAKE2b `update` loop, H-prime, H0 composition, the
+preconditions. Complete BLAKE2b/RFC streaming semantics, H-prime, H0 composition, the
 full Argon2 hash loop, SIMD memory safety/equivalence,
 cryptographic security, machine-code timing, and zeroization are outside the
 checked scope. Specification fidelity is a human obligation independent of

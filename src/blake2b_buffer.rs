@@ -42,6 +42,7 @@ pub(crate) fn flush_full_buffer(
     (h, counter)
 }
 
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires buffered_len <= 128, input.len() > 0,
         counter as int + buffered_len as int + input.len() as int <= u128::MAX as int,

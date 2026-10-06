@@ -8,9 +8,10 @@
 - Same-source Verus contracts for scalar and indexing/geometry leaves.
 - Same-source Verus proofs for complete scalar block G and one BLAKE2b
 	compression-block state transition, plus buffer append/flush/update-step and
-	finalization helpers; the repeated streaming loop and full Argon2 remain
-	outside the proof scope.
+	finalization helpers; full Argon2 remains outside the proof scope.
 - Proved positive streaming update-step progress and byte-count conservation;
-  isolated the blocked offset-loop experiment from production and proof gates.
+	proved the production offset-update loop against a finite model-step trace
+	using opaque transitions and pointwise edge lemmas. Removed diagnostic repro
+	files; RFC streaming equivalence, H-prime and hash composition remain open.
 - RFC 9106 known-answer, backend-agreement, boundary and resource tests.
 - Streamed initial hashing and volatile wiping of owned arena/BLAKE2b storage.

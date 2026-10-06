@@ -125,4 +125,30 @@ mod tests {
         ];
         assert_eq!(digest, expected);
     }
+
+    #[test]
+    fn streaming_update_boundaries_and_partitions() {
+        for input_len in [0usize, 1, 127, 128, 129, 255, 256, 257, 513] {
+            let input: Vec<u8> = (0..input_len).map(|index| index as u8).collect();
+            for out_len in [1usize, 32, 64] {
+                let expected = blake2b(out_len, &[&input]);
+                for split in 0..=input_len {
+                    let mut hasher = Blake2b::new(out_len);
+                    hasher.update(&input[..split]);
+                    hasher.update(&[]);
+                    hasher.update(&input[split..]);
+                    hasher.update(&[]);
+                    let compressed = input_len.saturating_sub(1) / BLOCK_BYTES * BLOCK_BYTES;
+                    assert_eq!(hasher.t, compressed as u128);
+                    assert_eq!(hasher.buf_len, input_len - compressed);
+                    assert_eq!(hasher.finalize(), expected, "len={input_len}, split={split}");
+                }
+                let mut hasher = Blake2b::new(out_len);
+                for byte in input.chunks(1) {
+                    hasher.update(byte);
+                }
+                assert_eq!(hasher.finalize(), expected);
+            }
+        }
+    }
 }

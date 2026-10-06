@@ -21,3 +21,5 @@ mkdir -p target/verus
   --rlimit 30
 "$verus_bin" verus/blake2b_buffer_verified.rs --crate-type lib --no-cheating \
   --rlimit 30
+"$verus_bin" verus/blake2b_update_verified.rs --crate-type lib --no-cheating \
+  --rlimit 30
