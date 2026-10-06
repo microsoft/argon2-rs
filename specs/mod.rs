@@ -308,6 +308,22 @@ pub open spec fn blake2b_update_step(
     (next_h, next_counter, next_buffer, next_len + take, take)
 }
 
+pub proof fn blake2b_update_step_progress(
+    h: Seq<u64>, counter: u128, buffer: Seq<u8>, buffered_len: nat, input: Seq<u8>,
+)
+    requires h.len() == 8, buffer.len() == 128, buffered_len <= 128,
+        input.len() > 0,
+        counter as int + buffered_len as int + input.len() as int <= u128::MAX as int,
+    ensures ({
+        let next = blake2b_update_step(h, counter, buffer, buffered_len, input);
+        &&& 0 < next.4 <= input.len()
+        &&& next.3 <= 128
+        &&& next.1 as int + next.3 as int
+            == counter as int + buffered_len as int + next.4 as int
+    }),
+{
+}
+
 pub open spec fn blake2b_compress_state(
     h: Seq<u64>,
     message: Seq<u64>,

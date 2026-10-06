@@ -121,10 +121,12 @@ Proof roots include [verus/shared.rs](verus/shared.rs),
 [verus/block_g_fill_verified.rs](verus/block_g_fill_verified.rs),
 [verus/blake2b_compress_verified.rs](verus/blake2b_compress_verified.rs), and
 [verus/blake2b_tables_verified.rs](verus/blake2b_tables_verified.rs). The latest
-`--no-cheating` gate reports, respectively: **32**, **7**, **10**, **10**, **12**,
-**20**, **15**, and **5 verified obligations**, all with zero errors.
-The BLAKE2b buffer root additionally reports **20 verified, 0 errors** for
-append, full-buffer flush/update step, padding, and final-block serialization.
+`--no-cheating --rlimit 30` gate reports, respectively: **33**, **8**, **11**, **11**, **13**,
+**21**, **16**, and **6 verified obligations**, all with zero errors.
+The BLAKE2b buffer root additionally reports **21 verified, 0 errors** for
+append, full-buffer flush/update step, padding, final-block serialization,
+and positive step progress/byte-count conservation. The shared progress lemma
+adds one obligation to every root; this does not expand their hash-level scope.
 There are 11 executable leaf functions; the check count includes proof helpers.
 Counts are verifier
 checks, not coverage percentages. Mathematical definitions live in

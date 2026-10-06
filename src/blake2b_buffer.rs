@@ -58,6 +58,9 @@ pub(crate) fn flush_full_buffer(
             h@, counter, buffer@, buffered_len as nat, input@).4,
         result.4 as nat == specs::blake2b_update_take(
             if buffered_len == 128 { 0nat } else { buffered_len as nat }, input@.len()),
+        0 < result.4 <= input.len(), result.3 <= 128,
+        result.1 as int + result.3 as int
+            == counter as int + buffered_len as int + result.4 as int,
 ))]
 pub(crate) fn update_step(
     h: [u64; 8],
@@ -66,6 +69,10 @@ pub(crate) fn update_step(
     buffered_len: usize,
     input: &[u8],
 ) -> ([u64; 8], u128, [u8; 128], usize, usize) {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        specs::blake2b_update_step_progress(h@, counter, buffer@, buffered_len as nat, input@);
+    }
     let mut h = h;
     let mut counter = counter;
     let mut buffer = buffer;

@@ -10,5 +10,7 @@
 	compression-block state transition, plus buffer append/flush/update-step and
 	finalization helpers; the repeated streaming loop and full Argon2 remain
 	outside the proof scope.
+- Proved positive streaming update-step progress and byte-count conservation;
+  isolated the blocked offset-loop experiment from production and proof gates.
 - RFC 9106 known-answer, backend-agreement, boundary and resource tests.
 - Streamed initial hashing and volatile wiping of owned arena/BLAKE2b storage.
