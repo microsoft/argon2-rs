@@ -8,6 +8,7 @@ and proof blocks. This same-source layout requires no executable export step.
 | --- | --- | --- |
 | [shared.rs](shared.rs) | [../src/core_primitives.rs](../src/core_primitives.rs), [../src/block_primitives.rs](../src/block_primitives.rs) | All 11 scalar and core executable leaves; supporting lemmas in [../proofs/geometry.rs](../proofs/geometry.rs). |
 | [block_verified.rs](block_verified.rs) | [../src/block_primitives.rs](../src/block_primitives.rs) | `blamka`, `rotr64`, `gb`, `permute`. |
+| [block_g_rows_verified.rs](block_g_rows_verified.rs) | [../src/block_g.rs](../src/block_g.rs), [../src/block_primitives.rs](../src/block_primitives.rs) | The production row-wise permutation pass over the eight 16-word rows. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -28,6 +29,7 @@ From the crate root, set `VERUS` to the verifier executable:
 VERUS=/path/to/verus
 "$VERUS" verus/shared.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/block_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/block_g_rows_verified.rs --crate-type lib --no-cheating --rlimit 30
 ```
 
 The matching source revision is
@@ -38,7 +40,8 @@ to the resulting executable. Do not infer a downloadable release URL from the
 version string alone. Build Verus in a separate checkout and shell so its Cargo
 wrapper does not replace the ordinary toolchain used for this crate.
 The current strict baseline is **29 verified, 0 errors** for the combined root,
-including proof helpers, and **4 verified, 0 errors** for the scalar root.
+including proof helpers, **4 verified, 0 errors** for the scalar root, and
+**5 verified, 0 errors** for the row-wise G helper root.
 Require a successful exit and a positive verification summary with zero errors
 for each root. Compile-only output or expansion output is not proof evidence.
 
@@ -58,7 +61,8 @@ ordinary Cargo command with Verus's build wrapper.
 The checks establish agreement with the encoded mathematical definitions and
 arithmetic/bounds safety under each function's preconditions. Rotation requires
 `1 <= n <= 63`; geometry and indexing require valid parameters and positions.
-They do not establish permutation bijectivity or full compression G correctness.
+They do not establish permutation bijectivity, the column-wise pass, or full
+compression G correctness. The row-wise pass is verified as a separate helper.
 
 Core leaves are integrated into the hash path. Neither same-source
 compilation nor leaf verification proves all hash-loop callers meet these

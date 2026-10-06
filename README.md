@@ -106,12 +106,16 @@ required for the production path.
 | Source | Checked contract scope |
 | --- | --- |
 | [src/block_primitives.rs](src/block_primitives.rs) | BlaMka modular arithmetic, rotation for `1 <= n <= 63`, GB, and permutation P agree with their mathematical definitions; no panic under their preconditions. |
+| [src/block_g.rs](src/block_g.rs) | The production row-wise pass applies P to each of the eight 16-word rows, as specified. |
 | [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, and index-alpha mapping agree with their contracts; specified bounds and arithmetic safety hold under their preconditions. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
-The proof roots are [verus/shared.rs](verus/shared.rs) and
-[verus/block_verified.rs](verus/block_verified.rs). The combined root checks
-both core and scalar functions with `--no-cheating`: 29 checks, zero errors.
+The proof roots are [verus/shared.rs](verus/shared.rs),
+[verus/block_verified.rs](verus/block_verified.rs), and
+[verus/block_g_rows_verified.rs](verus/block_g_rows_verified.rs). The combined
+root checks both core and scalar functions with `--no-cheating`: 29 checks,
+zero errors; the block-only root reports 4 checks, and the row-wise G helper
+root reports 5 checks, both with zero errors.
 There are 11 executable leaf functions; the check count includes proof helpers.
 Counts are verifier
 checks, not coverage percentages. Mathematical definitions live in
@@ -121,8 +125,8 @@ This is not an end-to-end Argon2 proof. Scalar leaves are compiled into the
 Cargo library, as are the parameter, geometry, predecessor, addressing-mode,
 and reference-index leaves.
 Compiling or calling a verified leaf does not establish
-that every caller satisfies its preconditions. BLAKE2b, full block compression
-G, hash-loop invariants, SIMD equivalence and memory safety, permutation
+that every caller satisfies its preconditions. BLAKE2b, the column-wise pass
+and complete G, hash-loop invariants, SIMD equivalence and memory safety, permutation
 bijectivity, cryptographic security, timing, and zeroization are not established
 by these proofs. Specification fidelity to the RFC remains a separate human
 obligation. Verus/vstd, the SMT solver, Rust compiler, and their translation

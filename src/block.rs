@@ -1,6 +1,8 @@
 //! The Argon2 1024-byte block type and its compression function `G`
 //! (spec section 3.4 and Appendix A).
 
+use crate::block_g;
+
 /// A single 1024-byte Argon2 memory block, stored as 128 64-bit words.
 /// 64-byte aligned to avoid cache-line splits on the random-access reads
 /// this memory-hard algorithm performs across the whole working set.
@@ -89,9 +91,7 @@ pub fn fill_block(
     }
 
     // Rowwise: row i is the contiguous words [16*i, 16*i+16).
-    for row in r.as_chunks_mut::<16>().0 {
-        permute(row);
-    }
+    block_g::permute_rows(r.as_chunks_mut::<16>().0);
 
     // Columnwise: column j takes words 2j + 16k and 2j + 16k + 1, k in 0..8.
     for j in 0..8 {

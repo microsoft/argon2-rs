@@ -16,6 +16,7 @@
 
 mod blake2b;
 mod block;
+mod block_g;
 mod block_primitives;
 mod core_impl;
 mod core_primitives;

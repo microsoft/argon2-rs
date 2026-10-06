@@ -37,6 +37,26 @@ pub open spec fn permute(v: Seq<u64>) -> Seq<u64>
     seq![v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15]
 }
 
+pub open spec fn permute_rows_prefix(
+    before: Seq<[u64; 16]>,
+    after: Seq<[u64; 16]>,
+    completed: int,
+) -> bool {
+    before.len() == after.len()
+        && 0 <= completed <= before.len()
+        && forall|i: int| 0 <= i < before.len() ==>
+            if i < completed {
+                after[i]@ == permute(before[i]@)
+            } else {
+                after[i]@ == before[i]@
+            }
+}
+
+pub open spec fn rows_are_permuted(before: Seq<[u64; 16]>, after: Seq<[u64; 16]>) -> bool {
+    before.len() == after.len()
+        && forall|i: int| 0 <= i < before.len() ==> after[i]@ == permute(before[i]@)
+}
+
 pub open spec fn valid_params(lanes: u32, memory: u32, passes: u32) -> bool {
     1 <= lanes <= 0x00ff_ffff && 8 * lanes <= memory && passes >= 1
 }
