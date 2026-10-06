@@ -22,6 +22,22 @@ pub(crate) fn iv() -> [u64; 8] {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires 1 <= out_len <= 64,
+    ensures result@ == specs::blake2b_initial_h(out_len as nat),
+))]
+pub(crate) fn initial_h(out_len: usize) -> [u64; 8] {
+    let mut h = iv();
+    let length = out_len as u64;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert((0x0101_0000u64 ^ length) == (0x0101_0000u64 | length)) by(bit_vector)
+            requires 1 <= length <= 64;
+    }
+    h[0] ^= 0x0101_0000 ^ length;
+    h
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result@ == specs::blake2b_sigma(),
 ))]
 pub(crate) fn sigma() -> [[usize; 16]; 12] {

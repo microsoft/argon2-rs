@@ -229,6 +229,16 @@ pub open spec fn blake2b_serialize_state(state: Seq<u64>) -> Seq<u8>
     Seq::new(64, |i: int| (state[i / 8] >> (8 * (i % 8))) as u8)
 }
 
+pub open spec fn blake2b_initial_h(out_len: nat) -> Seq<u64>
+    recommends 1 <= out_len <= 64,
+{
+    Seq::new(8, |index: int| if index == 0 {
+        blake2b_iv()[0] ^ (0x0101_0000u64 | out_len as u64)
+    } else {
+        blake2b_iv()[index]
+    })
+}
+
 pub open spec fn blake2b_finalize_result(
     h: Seq<u64>,
     counter: u128,

@@ -12,6 +12,9 @@
 - Proved positive streaming update-step progress and byte-count conservation;
 	proved the production offset-update loop against a finite model-step trace
 	using opaque transitions and pointwise edge lemmas. Removed diagnostic repro
-	files; RFC streaming equivalence, H-prime and hash composition remain open.
+	files.
+- Proved production streaming continuation against a block-oriented digest model,
+	binary partition composition/independence, and unkeyed BLAKE2b initialization.
+	Public multipart wrapper, H-prime and hash composition remain unproved.
 - RFC 9106 known-answer, backend-agreement, boundary and resource tests.
 - Streamed initial hashing and volatile wiping of owned arena/BLAKE2b storage.

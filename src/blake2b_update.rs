@@ -5,6 +5,8 @@ use crate::blake2b_buffer::update_step;
 #[cfg(verus_keep_ghost)]
 use crate::blake2b_update_model as model;
 #[cfg(verus_keep_ghost)]
+use crate::specs;
+#[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(
@@ -22,6 +24,18 @@ use vstd::prelude::*;
                 final(h)@, *final(counter), final(buffer)@,
                 *final(buffered_len) as nat, old(data)@.len(),
             ),
+        exists|blocks: nat| model::blake2b_update_semantic_at(
+            (old(h)@, *old(counter), old(buffer)@, *old(buffered_len) as nat, 0nat),
+            old(data)@,
+            (final(h)@, *final(counter), final(buffer)@,
+                *final(buffered_len) as nat, old(data)@.len()),
+            blocks,
+        ),
+        specs::blake2b_finalize_result(
+            final(h)@, *final(counter), final(buffer)@, *final(buffered_len) as nat,
+        ) == model::blake2b_stream_digest(
+            old(h)@, *old(counter), old(buffer)@.take(*old(buffered_len) as int) + old(data)@,
+        ),
 ))]
 pub(crate) fn update(
     h: &mut [u64; 8],
@@ -36,6 +50,11 @@ pub(crate) fn update(
     proof_decl! {
         let ghost initial = (h@, *counter, buffer@, *buffered_len as nat, 0nat);
         let ghost mut trace = Seq::empty().push(initial);
+        let ghost mut blocks = 0nat;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        model::blake2b_update_semantic_initial(initial, input@);
     }
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant
@@ -48,11 +67,16 @@ pub(crate) fn update(
             initial == (old(h)@, *old(counter), old(buffer)@, *old(buffered_len) as nat, 0nat),
             model::blake2b_update_trace(initial, input@, trace),
             trace.last() == (h@, *counter, buffer@, *buffered_len as nat, offset as nat),
+            model::blake2b_update_semantic_at(initial, input@, trace.last(), blocks),
         decreases input.len() - offset,
     ))]
     while offset < input.len() {
         #[cfg(verus_keep_ghost)]
         proof! {
+            model::blake2b_update_semantic_next(initial, input@, trace.last(), blocks);
+            if trace.last().3 == 128 {
+                blocks = blocks + 1;
+            }
             model::blake2b_update_trace_extend(initial, input@, trace);
             reveal(model::blake2b_update_next);
             trace = trace.push(model::blake2b_update_next(trace.last(), input@));
@@ -68,10 +92,17 @@ pub(crate) fn update(
     *data = &input[offset..];
     #[cfg(verus_keep_ghost)]
     proof! {
+        model::blake2b_update_semantic_finalize(initial, input@, trace.last(), blocks);
         assert(exists|witness: Seq<model::Blake2bUpdateState>|
             model::blake2b_update_trace(initial, input@, witness)
             && witness.last() == (h@, *counter, buffer@, *buffered_len as nat, input@.len())) by {
             assert(model::blake2b_update_trace(initial, input@, trace));
+        }
+        assert(exists|completed: nat| model::blake2b_update_semantic_at(
+            initial, input@,
+            (h@, *counter, buffer@, *buffered_len as nat, input@.len()), completed,
+        )) by {
+            assert(model::blake2b_update_semantic_at(initial, input@, trace.last(), blocks));
         }
     }
 }

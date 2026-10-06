@@ -5,7 +5,7 @@
 //! top of it (`blake2b_long`), as specified in section 3.2 of the Argon2
 //! spec ("Variable-length hash function").
 
-use crate::blake2b_tables::iv;
+use crate::blake2b_tables::initial_h;
 
 const BLOCK_BYTES: usize = 128;
 
@@ -27,9 +27,7 @@ impl Drop for Blake2b {
 impl Blake2b {
     pub fn new(out_len: usize) -> Self {
         assert!((1..=64).contains(&out_len), "blake2b output length must be 1..=64");
-        let mut h = iv();
-        // Parameter block for unkeyed, unsalted BLAKE2b: digest_length | key_length<<8 | fanout<<16 | depth<<24
-        h[0] ^= 0x0101_0000 ^ (out_len as u64);
+        let h = initial_h(out_len);
         Self { h, t: 0, buf: [0u8; BLOCK_BYTES], buf_len: 0 }
     }
 
