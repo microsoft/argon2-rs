@@ -111,7 +111,7 @@ required for the production path.
 | [src/block_g_fill.rs](src/block_g_fill.rs) | The production scalar G transition over a flat 128-word block, including row/column passes and both XOR stages, matches its sequence model. |
 | [src/blake2b_compress.rs](src/blake2b_compress.rs), [src/blake2b_tables.rs](src/blake2b_tables.rs), and [src/blake2b_buffer.rs](src/blake2b_buffer.rs) | One block-to-state transition, RFC tables/unkeyed initialization, buffer append/flush, update step, and final-block transition. |
 | [src/blake2b_update.rs](src/blake2b_update.rs), [proofs/blake2b_update.rs](proofs/blake2b_update.rs) | The production loop establishes block-prefix semantics and a modeled final digest; binary partition composition proves digest independence for any two-part split under the semantic contracts. |
-| [src/blake2b.rs](src/blake2b.rs) | Real public constructor/update/finalize methods and arbitrary finite multipart/prefixed composition match the block-stream model under valid output-length and total-byte preconditions. Ghost-only closed views preserve private fields; H-prime is not proved. |
+| [src/blake2b.rs](src/blake2b.rs), [proofs/blake2b_long.rs](proofs/blake2b_long.rs) | Real public methods, multipart/prefixed wrappers and both H-prime branches match their encoded models under output/capacity/byte-count preconditions. H-prime output length, bounds and termination are checked; closed ghost views preserve private fields. |
 | [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, and index-alpha mapping agree with their contracts; specified bounds and arithmetic safety hold under their preconditions. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
@@ -135,7 +135,8 @@ block-stream digest semantics and binary partition-composition lemmas.
 The initialization helper adds two obligations to roots importing the tables.
 The parts-prefix model adds two checks to streaming roots. The new
 [verus/blake2b_api_verified.rs](verus/blake2b_api_verified.rs) root reports
-**47 verified, 0 errors** for the real public methods and multipart/prefixed wrappers.
+**55 verified, 0 errors** for the real public methods, multipart/prefixed wrappers,
+H-prime and its model lemmas.
 There are 11 executable leaf functions; the check count includes proof helpers.
 Counts are verifier
 checks, not coverage percentages. Mathematical definitions live in
@@ -150,8 +151,11 @@ block transition, buffer/update-step/finalize helpers, and the repeated update
 loop against a finite trace and a block-oriented digest model, with binary
 partition independence under the semantic contracts. The public constructor and
 multipart/prefixed wrappers are now checked for arbitrary finite part lists with
-output lengths 1..=64 and representable total byte counts. H-prime and H0 composition
-are not proved. Production Drop/wiping remain unchanged; cleanup/zeroization is
+output lengths 1..=64 and representable total byte counts. H-prime is checked for
+output lengths 1..=u32::MAX within isize::MAX byte capacity and a representable
+total input count including the four-byte length prefix. This is conditional on
+successful normal allocation/execution, not a recoverable-allocation theorem.
+H0 composition and hash traversal are not proved. Drop/wiping are unchanged; zeroization is
 not part of these functional proofs. The full hash loop,
 caller invariants, SIMD equivalence and memory safety, permutation bijectivity,
 cryptographic security, timing, and zeroization are not established

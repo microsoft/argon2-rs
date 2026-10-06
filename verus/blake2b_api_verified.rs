@@ -9,6 +9,8 @@ use vstd::prelude::*;
 mod specs;
 #[path = "../proofs/blake2b_update.rs"]
 mod blake2b_update_model;
+#[path = "../proofs/blake2b_long.rs"]
+mod blake2b_long_model;
 #[path = "../src/blake2b_tables.rs"]
 mod blake2b_tables;
 #[path = "../src/blake2b_compress.rs"]

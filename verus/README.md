@@ -16,7 +16,7 @@ and proof blocks. This same-source layout requires no executable export step.
 | [blake2b_tables_verified.rs](blake2b_tables_verified.rs) | [../src/blake2b_tables.rs](../src/blake2b_tables.rs) | Production IV/SIGMA and unkeyed digest-length initialization agree with the model. |
 | [blake2b_buffer_verified.rs](blake2b_buffer_verified.rs) | [../src/blake2b_buffer.rs](../src/blake2b_buffer.rs), compression helpers | Buffer append, full-buffer flush/update step, final padding, and digest serialization. |
 | [blake2b_update_verified.rs](blake2b_update_verified.rs) | [../src/blake2b_update.rs](../src/blake2b_update.rs), [../proofs/blake2b_update.rs](../proofs/blake2b_update.rs), buffer helpers | Production update establishes block-prefix semantics and a modeled final digest; binary partition composition and digest independence are proved. |
-| [blake2b_api_verified.rs](blake2b_api_verified.rs) | [../src/blake2b.rs](../src/blake2b.rs), streaming model/helpers | Real public constructor/update/finalize methods and multipart/prefixed wrappers agree with the block-stream model for arbitrary finite part lists under their preconditions. |
+| [blake2b_api_verified.rs](blake2b_api_verified.rs) | [../src/blake2b.rs](../src/blake2b.rs), [../proofs/blake2b_long.rs](../proofs/blake2b_long.rs), streaming model/helpers | Real public methods, arbitrary multipart/prefixed wrappers, and both H-prime branches agree with their models; lengths, bounds and loop termination are checked under explicit preconditions. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -60,7 +60,7 @@ The current strict gate reports **33**, **8**, **11**, **11**, **13**, **21**,
 row, one-column, eight-column, full-G, BLAKE2b-block, and BLAKE2b-table roots.
 The BLAKE2b buffer/update-step/finalize root reports **23 verified, 0 errors**.
 The production update/streaming-composition root reports **41 verified, 0 errors**.
-The public multipart/prefixed API root reports **47 verified, 0 errors**.
+The public multipart/prefixed API and H-prime root reports **55 verified, 0 errors**.
 The parts-prefix definition and bound lemma add two obligations to roots importing
 the streaming proof module. The API root additionally uses ghost-only `cfg_eval`
 to expand nested contracts before `verus_verify`; ordinary Rust erases those attrs.
@@ -115,10 +115,21 @@ and total message length representable in `u128`. No trusted bodies or assumptio
 were added. Production Drop/wiping remain unchanged and outside the checked
 zeroization scope. Model fidelity still requires independent human review.
 Boundary and partition tests are regression evidence, not the binary theorem's proof.
-H-prime is not proved. Its latest isolated attempt failed to establish the public
-wrapper's total-byte precondition for a singleton reference in a loop. The failed
-experiment is excluded from production, package contents and gates; no limit was
-raised. The remaining order is H-prime, an explicit theorem-domain
+H-prime now agrees with the RFC-oriented length-prefix/digest-chain model for both
+short and long branches. The model uses `ceil(T / 32) - 2` for long-output rounds;
+the executable invariant proves that relation, exact output length and termination.
+Explicit singleton slice bindings and prefix base-case facts resolved the prior VC.
+The helper encodes four little-endian bytes directly; supported Vec copying and
+a boolean debug assertion avoid adding assumed specifications for unsupported std
+functions. No assumptions or increased limits were introduced.
+
+H-prime requires `1 <= out_len <= u32::MAX`, `out_len <= isize::MAX` for the byte
+Vec, and `4 + concat(parts).len() <= u128::MAX`. Claims are conditional on normal
+successful allocation/execution in the standard collection model, not allocation
+failure recovery or zeroization. Independent hashlib vectors use the RFC ceil-based
+formula at output lengths 1, 32, 64, 65, 96, 97, 128 and 129 for message `abc`;
+they are regression evidence, not independent review of the whole specification.
+The remaining order is an explicit theorem-domain
 decision, and only then scalar hash-level composition. A termination or resource
 limit blocker at `--rlimit 30` requires a minimal reproducer and decomposition
 analysis, not assumptions or a larger limit. Every proved slice must pass the
@@ -128,7 +139,7 @@ H-prime, initialization/finalization, and hash traversal are composed and checke
 
 Core leaves and G are integrated into the hash path. Neither same-source
 compilation nor leaf verification proves all hash-loop callers meet these
-preconditions. H-prime, H0 composition, the
+preconditions. H0 composition, the
 full Argon2 hash loop, SIMD memory safety/equivalence,
 cryptographic security, machine-code timing, and zeroization are outside the
 checked scope. Specification fidelity is a human obligation independent of
