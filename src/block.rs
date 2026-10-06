@@ -1,8 +1,7 @@
 //! The Argon2 1024-byte block type and its compression function `G`
 //! (spec section 3.4 and Appendix A).
 
-use crate::block_g;
-use crate::block_g_columns;
+pub use crate::block_g_fill::fill_block;
 
 /// A single 1024-byte Argon2 memory block, stored as 128 64-bit words.
 /// 64-byte aligned to avoid cache-line splits on the random-access reads
@@ -69,38 +68,6 @@ pub fn compress(x: &[u64], y: &[u64], out: &mut [u64]) {
     let x: &[u64; 128] = x.try_into().unwrap();
     let y: &[u64; 128] = y.try_into().unwrap();
     fill_block(x, y, out.try_into().unwrap(), false);
-}
-
-/// `ref.c` `fill_block`: `next = G(prev, reference)`, XORed with the old
-/// `next` when `with_xor` (version 0x13 after pass 0). Writes `next` once,
-/// with no intermediate output buffer.
-#[inline(always)]
-pub fn fill_block(
-    prev: &[u64; 128],
-    reference: &[u64; 128],
-    next: &mut [u64; 128],
-    with_xor: bool,
-) {
-    let mut r = [0u64; 128];
-    for i in 0..128 {
-        r[i] = prev[i] ^ reference[i];
-    }
-    let mut tmp = r;
-    if with_xor {
-        for i in 0..128 {
-            tmp[i] ^= next[i];
-        }
-    }
-
-    // Rowwise: row i is the contiguous words [16*i, 16*i+16).
-    block_g::permute_rows(r.as_chunks_mut::<16>().0);
-
-    // Columnwise: each column uses the same permutation P as the row pass.
-    block_g_columns::permute_columns(&mut r);
-
-    for i in 0..128 {
-        next[i] = tmp[i] ^ r[i];
-    }
 }
 
 #[cfg(test)]

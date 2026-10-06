@@ -5,8 +5,8 @@
 //! the PHC winner submission) and RFC 9106.
 //!
 //! See `README.md` for the security rationale, verification status, and
-//! test methodology (known-answer tests plus a partial Verus proof of the
-//! compression function's core permutation).
+//! test methodology (known-answer tests plus same-source Verus proofs of
+//! scalar primitives, complete block G, and one BLAKE2b block transition).
 //!
 //! BLAKE2b and the Argon2 core are implemented locally. SIMD backends share
 //! reference indexing, and selected scalar/indexing functions have same-source
@@ -15,10 +15,15 @@
 #![deny(unsafe_code)]
 
 mod blake2b;
+mod blake2b_buffer;
+mod blake2b_compress;
+mod blake2b_tables;
+mod blake2b_update;
 mod block;
 mod block_g;
 mod block_g_column;
 mod block_g_columns;
+mod block_g_fill;
 mod block_primitives;
 mod core_impl;
 mod core_primitives;

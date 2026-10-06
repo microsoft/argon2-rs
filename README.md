@@ -107,18 +107,24 @@ required for the production path.
 | --- | --- |
 | [src/block_primitives.rs](src/block_primitives.rs) | BlaMka modular arithmetic, rotation for `1 <= n <= 63`, GB, and permutation P agree with their mathematical definitions; no panic under their preconditions. |
 | [src/block_g.rs](src/block_g.rs) | The production row-wise pass applies P to each of the eight 16-word rows, as specified. |
-| [src/block_g_column.rs](src/block_g_column.rs) | Gathering, applying P to, and scattering one selected 16-word column satisfies its mathematical contract. |
+| [src/block_g_column.rs](src/block_g_column.rs) and [src/block_g_columns.rs](src/block_g_columns.rs) | One-column gather/P/scatter and the production loop over all eight columns satisfy their contracts. |
+| [src/block_g_fill.rs](src/block_g_fill.rs) | The production scalar G transition over a flat 128-word block, including row/column passes and both XOR stages, matches its sequence model. |
+| [src/blake2b_compress.rs](src/blake2b_compress.rs), [src/blake2b_tables.rs](src/blake2b_tables.rs), and [src/blake2b_buffer.rs](src/blake2b_buffer.rs) | One block-to-state transition, RFC tables, buffer append/flush, update step, and final-block transition. The repeated `update` loop and H-prime are not included. |
 | [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, and index-alpha mapping agree with their contracts; specified bounds and arithmetic safety hold under their preconditions. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
-The proof roots are [verus/shared.rs](verus/shared.rs),
-[verus/block_verified.rs](verus/block_verified.rs), and
-[verus/block_g_rows_verified.rs](verus/block_g_rows_verified.rs), and
-[verus/block_g_column_verified.rs](verus/block_g_column_verified.rs). The combined
-root checks both core and scalar functions with `--no-cheating`: 29 checks,
-zero errors; the block-only root reports 4 checks, and the row-wise G helper
-root reports 5 checks, and the single-column helper root reports 7 checks, all
-with zero errors.
+Proof roots include [verus/shared.rs](verus/shared.rs),
+[verus/block_verified.rs](verus/block_verified.rs),
+[verus/block_g_rows_verified.rs](verus/block_g_rows_verified.rs),
+[verus/block_g_column_verified.rs](verus/block_g_column_verified.rs),
+[verus/block_g_columns_verified.rs](verus/block_g_columns_verified.rs),
+[verus/block_g_fill_verified.rs](verus/block_g_fill_verified.rs),
+[verus/blake2b_compress_verified.rs](verus/blake2b_compress_verified.rs), and
+[verus/blake2b_tables_verified.rs](verus/blake2b_tables_verified.rs). The latest
+`--no-cheating` gate reports, respectively: **32**, **7**, **10**, **10**, **12**,
+**20**, **15**, and **5 verified obligations**, all with zero errors.
+The BLAKE2b buffer root additionally reports **20 verified, 0 errors** for
+append, full-buffer flush/update step, padding, and final-block serialization.
 There are 11 executable leaf functions; the check count includes proof helpers.
 Counts are verifier
 checks, not coverage percentages. Mathematical definitions live in
@@ -128,9 +134,11 @@ This is not an end-to-end Argon2 proof. Scalar leaves are compiled into the
 Cargo library, as are the parameter, geometry, predecessor, addressing-mode,
 and reference-index leaves.
 Compiling or calling a verified leaf does not establish
-that every caller satisfies its preconditions. BLAKE2b, the outer eight-column
-loop and complete G, hash-loop invariants, SIMD equivalence and memory safety, permutation
-bijectivity, cryptographic security, timing, and zeroization are not established
+that every caller satisfies its preconditions. BLAKE2b proof slices cover one
+block transition and individual buffer/update-step/finalize helpers, but do not
+prove the repeated `update` loop, H-prime, or H0 composition. The full hash loop,
+caller invariants, SIMD equivalence and memory safety, permutation bijectivity,
+cryptographic security, timing, and zeroization are not established
 by these proofs. Specification fidelity to the RFC remains a separate human
 obligation. Verus/vstd, the SMT solver, Rust compiler, and their translation
 semantics are trusted tooling; Verus is not a production dependency.

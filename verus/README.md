@@ -10,6 +10,11 @@ and proof blocks. This same-source layout requires no executable export step.
 | [block_verified.rs](block_verified.rs) | [../src/block_primitives.rs](../src/block_primitives.rs) | `blamka`, `rotr64`, `gb`, `permute`. |
 | [block_g_rows_verified.rs](block_g_rows_verified.rs) | [../src/block_g.rs](../src/block_g.rs), [../src/block_primitives.rs](../src/block_primitives.rs) | The production row-wise permutation pass over the eight 16-word rows. |
 | [block_g_column_verified.rs](block_g_column_verified.rs) | [../src/block_g_column.rs](../src/block_g_column.rs), [../src/block_primitives.rs](../src/block_primitives.rs) | Gather, permute, and scatter one selected 16-word column. |
+| [block_g_columns_verified.rs](block_g_columns_verified.rs) | [../src/block_g_columns.rs](../src/block_g_columns.rs) | The production loop applying the one-column helper to all eight columns. |
+| [block_g_fill_verified.rs](block_g_fill_verified.rs) | [../src/block_g_fill.rs](../src/block_g_fill.rs), row/column helpers | Full scalar 128-word G composition: input XOR, row P, column P, optional old-destination XOR, and output XOR. |
+| [blake2b_compress_verified.rs](blake2b_compress_verified.rs) | [../src/blake2b_compress.rs](../src/blake2b_compress.rs), [../src/blake2b_tables.rs](../src/blake2b_tables.rs) | One BLAKE2b 128-byte block-to-chaining-state transition, including little-endian decode, IV/counter/final flag, 12 rounds, and state fold. |
+| [blake2b_tables_verified.rs](blake2b_tables_verified.rs) | [../src/blake2b_tables.rs](../src/blake2b_tables.rs) | Production IV and SIGMA constructors match the fixed model tables. |
+| [blake2b_buffer_verified.rs](blake2b_buffer_verified.rs) | [../src/blake2b_buffer.rs](../src/blake2b_buffer.rs), compression helpers | Buffer append, full-buffer flush/update step, final padding, and digest serialization. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -32,6 +37,11 @@ VERUS=/path/to/verus
 "$VERUS" verus/block_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/block_g_rows_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/block_g_column_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/block_g_columns_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/block_g_fill_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/blake2b_compress_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/blake2b_tables_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/blake2b_buffer_verified.rs --crate-type lib --no-cheating --rlimit 30
 ```
 
 The matching source revision is
@@ -41,10 +51,11 @@ its BUILD.md with the pinned Rust toolchain and matching Z3, then set `VERUS`
 to the resulting executable. Do not infer a downloadable release URL from the
 version string alone. Build Verus in a separate checkout and shell so its Cargo
 wrapper does not replace the ordinary toolchain used for this crate.
-The current strict baseline is **29 verified, 0 errors** for the combined root,
-including proof helpers, **4 verified, 0 errors** for the scalar root,
-**5 verified, 0 errors** for the row-wise G helper root, and **7 verified, 0
-errors** for the single-column helper root.
+The current strict gate reports **32**, **7**, **10**, **10**, **12**, **20**,
+**15**, and **5 verified, 0 errors**, respectively, for the combined, scalar,
+row, one-column, eight-column, full-G, BLAKE2b-block, and BLAKE2b-table roots.
+The BLAKE2b buffer/update-step/finalize root reports **20 verified, 0 errors**.
+Counts are verifier obligations, not function or coverage counts.
 Require a successful exit and a positive verification summary with zero errors
 for each root. Compile-only output or expansion output is not proof evidence.
 
@@ -64,13 +75,17 @@ ordinary Cargo command with Verus's build wrapper.
 The checks establish agreement with the encoded mathematical definitions and
 arithmetic/bounds safety under each function's preconditions. Rotation requires
 `1 <= n <= 63`; geometry and indexing require valid parameters and positions.
-They do not establish permutation bijectivity, the eight-column orchestration,
-or full compression G correctness. The row-wise pass and one-column helper are
-verified as separate slices; the outer column loop remains unproved.
+The row pass, one-column helper, eight-column loop, and complete scalar G
+composition are verified as separate, composing slices. BLAKE2b roots prove
+one block-to-chaining-state transition, RFC tables, buffer append/flush, one
+update step, and final-block padding/serialization. The repeated `update` loop
+is not yet verified; its suffix-continuation model still has unresolved
+subrange/recommendation and termination obligations.
 
-Core leaves are integrated into the hash path. Neither same-source
+Core leaves and G are integrated into the hash path. Neither same-source
 compilation nor leaf verification proves all hash-loop callers meet these
-preconditions. BLAKE2b, the full hash loop, SIMD memory safety/equivalence,
+preconditions. The repeated BLAKE2b `update` loop, H-prime, H0 composition, the
+full Argon2 hash loop, SIMD memory safety/equivalence,
 cryptographic security, machine-code timing, and zeroization are outside the
 checked scope. Specification fidelity is a human obligation independent of
 successful discharge. Verus/vstd, the solver, compiler, and translation semantics
