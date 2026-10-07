@@ -20,7 +20,7 @@ and proof blocks. This same-source layout requires no executable export step.
 | [initial_hash_verified.rs](initial_hash_verified.rs) | [../src/initial_hash.rs](../src/initial_hash.rs), [../src/parameters.rs](../src/parameters.rs), [../proofs/initial_hash.rs](../proofs/initial_hash.rs), BLAKE2b helpers | Raw H0 serialization, real enum/Params mapping and checked accepted-input-to-H0 composition; not arena/traversal or the full hash caller. |
 | [parameters_verified.rs](parameters_verified.rs) | [../src/parameters.rs](../src/parameters.rs), core/geometry helpers | Parameter/salt/tag validation returns Ok exactly for its accepted domain; guarded arithmetic is checked. |
 | [memory_initialization_verified.rs](memory_initialization_verified.rs) | [../src/memory_initialization.rs](../src/memory_initialization.rs), [../proofs/memory_initialization.rs](../proofs/memory_initialization.rs), H-prime helpers | Exact H0/LE32 column/lane seed, H-prime(1024) decoding, in-bounds flat placement and real nested initialization loops; allocation/Memory wrapper/caller discharge excluded. |
-| [memory_owner_verified.rs](memory_owner_verified.rs) | [../src/memory.rs](../src/memory.rs), geometry/initialization/G/BLAKE2b helpers | Real owning initialize method under exact word-length/geometry preconditions through a closed ghost view; allocator/general accessors/full caller excluded. |
+| [memory_owner_verified.rs](memory_owner_verified.rs) | [../src/memory.rs](../src/memory.rs), geometry/initialization/G/BLAKE2b helpers | Successful `Memory::zeroed` returns exact-length zero words; real owning initialize is checked through a closed ghost view. Depends on the local trusted vstd `try_reserve_exact` content-preservation spec; allocator implementation/general accessors/full caller remain outside the proof. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -30,7 +30,7 @@ only one canonical body for each executable leaf.
 ## Running
 
 Obtain a compatible [Verus release or source build](https://github.com/verus-lang/verus)
-and its matching vstd, Rust toolchain, and Z3 solver. The known local baseline
+and its matching vstd, Rust toolchain, and Z3 solver. The original local baseline
 uses Verus `0.2026.09.23.4d4a480` with its `1.98.1` toolchain and Z3 `4.16.0`.
 Use the solver version pinned by your Verus build; substituting versions can
 cause parser failures rather than a meaningful verification result.
@@ -63,6 +63,12 @@ its BUILD.md with the pinned Rust toolchain and matching Z3, then set `VERUS`
 to the resulting executable. Do not infer a downloadable release URL from the
 version string alone. Build Verus in a separate checkout and shell so its Cargo
 wrapper does not replace the ordinary toolchain used for this crate.
+The original `4d4a480` vstd lacks `Vec::try_reserve_exact`, so it cannot verify
+the annotated constructor. The current constructor result was checked with a
+separate local Verus source worktree at `89f8d65` and its rebuilt vstd
+(`0.2026.10.07.89f8d65.dirty`), which contains the proposed mapping. That mapping
+is unmerged and trusted; a passing `--no-cheating` application gate does not
+prove the allocator implementation.
 The current strict gate reports **34**, **8**, **11**, **11**, **13**, **21**,
 **18**, and **8 verified, 0 errors**, respectively, for the combined, scalar,
 row, one-column, eight-column, full-G, BLAKE2b-block, and BLAKE2b-table roots.
@@ -73,8 +79,10 @@ The checked H0/parameter-adapter root reports **92 verified, 0 errors**.
 The parameter-validation root reports **35 verified, 0 errors**. These roots
 import existing core/geometry proofs and overlap; counts are not new coverage totals.
 The seed/block/flat-arena initialization root reports **69 verified, 0 errors**.
-The real owning-initialize root reports **118 verified, 0 errors** including
-imported G/core/BLAKE2b helpers. The geometry identity assertion adds one check
+The real owner/constructor root reports **121 verified, 0 errors** including
+imported G/core/BLAKE2b helpers, with the local vstd mapping. It proves the
+constructor's exact length and zero contents on `Ok`, not allocation success or
+allocator correctness. The geometry identity assertion adds one check
 to importing roots; these are overlapping obligations, not coverage totals.
 The parts-prefix definition and bound lemma add two obligations to roots importing
 the streaming proof module. The API root additionally uses ghost-only `cfg_eval`
@@ -202,14 +210,17 @@ root imports and proves the actual Memory::initialize body with a closed ghost
 word view under the same exact size/geometry conditions. Geometry additionally
 proves blocks=lanes*lane_length and lane_length>=8 for valid inputs.
 
-Memory::zeroed, allocation success shape, general accessors and Drop remain
-unverified and unchanged. The installed vstd has no try_reserve_exact mapping;
-an isolated probe confirms that blocker. Annotating the unchanged constructor
-also reaches an unsupported unverified Block::SIZE_WORDS mapping. No new assumed
-specification, trusted allocator body, reserve-policy change or larger limit was
-added. The unsupported constructor annotation was removed; the diagnostic is
-outside repo/package/gates. Full geometry/allocation-to-caller discharge remains
-blocked at that boundary. Remaining caller/allocation contracts and the
+The successful-result shape of `Memory::zeroed` is now checked: `Ok` contains
+exactly `128 * blocks` zero words. This uses the proposed `Vec::try_reserve_exact`
+content-preservation mapping in a separate local vstd worktree, alongside the
+existing trusted `Vec::new`/`resize` contracts. These are library assumptions,
+not proofs of allocator implementation or guaranteed allocation success. The
+constructor proof also makes the unchanged `Block::SIZE_WORDS` constants visible
+to Verus. General accessors, Drop, recoverable allocation failure, and the full
+geometry/allocation-to-caller chain remain outside the proof. No local application
+`assume_specification`, trusted allocator body, reserve-policy change, or larger
+limit was added. The candidate remains unmerged and requires custom-allocator
+review and upstream approval. Remaining caller/allocation contracts and the
 full Argon2 hash loop, SIMD memory safety/equivalence,
 cryptographic security, machine-code timing, and zeroization are outside the
 checked scope. Specification fidelity is a human obligation independent of

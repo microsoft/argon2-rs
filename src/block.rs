@@ -2,6 +2,8 @@
 //! (spec section 3.4 and Appendix A).
 
 pub use crate::block_g_fill::fill_block;
+#[cfg(verus_keep_ghost)]
+use vstd::prelude::{verus_spec, verus_verify};
 
 /// A single 1024-byte Argon2 memory block, stored as 128 64-bit words.
 /// 64-byte aligned to avoid cache-line splits on the random-access reads
@@ -10,10 +12,13 @@ pub use crate::block_g_fill::fill_block;
 #[repr(align(64))]
 pub struct Block(pub [u64; 128]);
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 impl Block {
     pub const SIZE_BYTES: usize = 1024;
     pub const SIZE_WORDS: usize = 128;
+}
 
+impl Block {
     pub fn zero() -> Self {
         Block([0u64; 128])
     }

@@ -26,6 +26,25 @@ impl Memory {
 #[cfg_attr(verus_keep_ghost, cfg_eval)]
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 impl Memory {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result matches Ok(memory) ==> (
+            memory.words().len() == blocks as int * 128
+            && forall|index: int| 0 <= index < memory.words().len() ==>
+                memory.words()[index] == 0
+        ),
+    ))]
+    pub(crate) fn zeroed(blocks: usize) -> Result<Self, Error> {
+        let words = blocks.checked_mul(Block::SIZE_WORDS).ok_or(Error::MemoryAllocationFailed)?;
+        let mut memory = Vec::new();
+        memory.try_reserve_exact(words).map_err(|_| Error::MemoryAllocationFailed)?;
+        memory.resize(words, 0);
+        Ok(Memory(memory))
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, cfg_eval)]
+#[cfg_attr(verus_keep_ghost, verus_verify)]
+impl Memory {
     /// Initialize the first two blocks of every lane.
     #[cfg_attr(verus_keep_ghost, verus_spec(
         requires lanes > 0, lane_length >= 2,
@@ -40,14 +59,6 @@ impl Memory {
 }
 
 impl Memory {
-    pub(crate) fn zeroed(blocks: usize) -> Result<Self, Error> {
-        let words = blocks.checked_mul(Block::SIZE_WORDS).ok_or(Error::MemoryAllocationFailed)?;
-        let mut memory = Vec::new();
-        memory.try_reserve_exact(words).map_err(|_| Error::MemoryAllocationFailed)?;
-        memory.resize(words, 0);
-        Ok(Memory(memory))
-    }
-
     /// Block `i` of the flat working memory.
     #[inline(always)]
     pub(crate) fn get(&self, i: usize) -> &[u64; Block::SIZE_WORDS] {

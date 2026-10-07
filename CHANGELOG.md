@@ -37,6 +37,10 @@
 	flat-arena initialization with in-bounds writes and untouched-word preservation.
 	Wired the owning arena to the helper without changing allocation/Drop policy;
 	owning wrapper/caller and full traversal/tag proofs remain incomplete.
+- Proved the successful `Memory::zeroed` result shape (exact word length and
+	zero contents) using a proposed, unmerged vstd `try_reserve_exact`
+	content-preservation specification. The allocator implementation and guaranteed
+	allocation success remain unproved; custom-allocator review and full caller/tag
+	composition are still pending. Allocation/Drop policy is unchanged.
 - Proved actual owning initialization through a closed ghost word view and exact
-	geometry identity. Allocator success-shape/caller discharge remains blocked on
-	unsupported exact-reserve std coverage; allocation/Drop policy is unchanged.
+	geometry identity; caller/traversal composition remains incomplete.
