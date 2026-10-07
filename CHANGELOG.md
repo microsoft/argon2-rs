@@ -44,3 +44,9 @@
 	composition are still pending. Allocation/Drop policy is unchanged.
 - Proved actual owning initialization through a closed ghost word view and exact
 	geometry identity; caller/traversal composition remains incomplete.
+- Proved a same-source memory-construction helper composing checked geometry,
+	successful zeroed allocation and first-two-block initialization, then wired the
+	core to call it. Full hash-caller precondition discharge and traversal remain open.
+- Proved a same-source memory-construction helper composing geometry, successful
+	zeroed allocation and first-two-block initialization, then wired the Argon2 core
+	to call it. Full hash-caller precondition discharge and traversal remain open.

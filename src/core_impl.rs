@@ -113,13 +113,8 @@ pub(crate) fn hash_into_with_backend(
     let backend = if backend.is_available() { backend } else { Backend::Scalar };
 
     let lanes = params.parallelism;
-    let (memory_blocks, lane_length, segment_length) =
-        crate::core_primitives::memory_geometry(params.memory_kib, lanes);
-
-    let mut memory = Memory::zeroed(memory_blocks as usize)?;
-
-    // Initial two columns of each lane, from H0 (spec section 3.2).
-    memory.initialize(&h0, lanes, lane_length);
+    let (mut memory, memory_blocks, lane_length, segment_length) =
+        Memory::zeroed_initialized(&h0, params.memory_kib, lanes)?;
 
     for pass in 0..params.iterations {
         for slice in 0..SYNC_POINTS {

@@ -115,7 +115,7 @@ required for the production path.
 | [src/initial_hash.rs](src/initial_hash.rs), [proofs/initial_hash.rs](proofs/initial_hash.rs) | Exact H0 serialization, real enum/Params adapter and checked accepted-input-to-H0 composition; not the full hash caller/traversal theorem. |
 | [src/parameters.rs](src/parameters.rs) | Canonical public input types and validation acceptance predicate, with guarded arithmetic checked and public root re-exports preserved. |
 | [src/memory_initialization.rs](src/memory_initialization.rs), [proofs/memory_initialization.rs](proofs/memory_initialization.rs) | Exact lane seed, H-prime block, little-endian decoding, in-bounds flat writes and nested first-two-block initialization under geometry/word-slice preconditions; owning arena/allocation/full caller proof excluded. |
-| [src/memory.rs](src/memory.rs) | `Memory::zeroed` returns exactly `128 * blocks` zero words on `Ok`, and the actual owning initializer satisfies its closed-view contract under exact geometry/size preconditions. This relies on a local, unmerged vstd `try_reserve_exact` specification; allocator implementation/general accessors/full hash caller are not proved. |
+| [src/memory.rs](src/memory.rs) | `Memory::zeroed_initialized` composes checked geometry, exact zeroed allocation shape, and first-two-block initialization under valid-parameter/native-size preconditions. It relies on a local, unmerged vstd `try_reserve_exact` specification; allocator implementation, general accessors, and discharge of helper preconditions by the full hash caller are not proved. |
 | [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, and index-alpha mapping agree with their contracts; specified bounds and arithmetic safety hold under their preconditions. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
@@ -148,9 +148,10 @@ for parameter validation plus imported core/geometry lemmas.
 The new [verus/memory_initialization_verified.rs](verus/memory_initialization_verified.rs)
 root reports **69 verified, 0 errors** for lane-block generation and flat initialization.
 [verus/memory_owner_verified.rs](verus/memory_owner_verified.rs) reports
-**121 verified, 0 errors** with the local Verus/vstd review build, for the
-successful-result shape of `Memory::zeroed`, the real owning initializer, and
-imported helpers. The strict application gate passes; its trusted vstd base now
+**122 verified, 0 errors** with the local Verus/vstd review build, for the
+geometry/allocation/initialization composition helper, the successful-result
+shape of `Memory::zeroed`, the real owning initializer, and imported helpers.
+The strict application gate passes; its trusted vstd base now
 includes the unmerged `try_reserve_exact` content-preservation specification.
 There are 11 executable leaf functions; the check count includes proof helpers.
 Counts are verifier
@@ -172,10 +173,12 @@ total input count including the four-byte length prefix. This is conditional on
 successful normal allocation/execution, not a recoverable-allocation theorem.
 H0 serialization, enum/Params mapping and the selected accepted-input boundary
 are proved. The real flat initialization loops are proved under exact arena-size
-and geometry preconditions, preserving untouched slots. General accessors and the
-full hash caller/traversal are not proved. The owning constructor's successful-result
-shape and initializer are checked, and geometry proves exact block product and
-lane_length>=8. The `try_reserve_exact` mapping is a trusted vstd specification in
+and geometry preconditions, preserving untouched slots. `Memory::zeroed_initialized`
+now composes geometry, allocation and initialization and is called by the core.
+The full hash caller still has not been verified to discharge its valid-parameter
+and native-size preconditions; traversal remains open. General accessors remain
+unverified. The constructor's successful-result shape and initializer are checked,
+and geometry proves exact block product and lane_length>=8. The `try_reserve_exact` mapping is a trusted vstd specification in
 a separate local review worktree, not an allocator implementation proof or an
 upstream-approved release. No application-local assumption was added. The agreed
 returned-tag target is forced scalar, version 0x13,
