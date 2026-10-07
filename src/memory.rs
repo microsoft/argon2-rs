@@ -6,10 +6,38 @@
 //! process abort or termination.
 
 use crate::block::Block;
+#[cfg(verus_keep_ghost)]
+use crate::memory_initialization_model as model;
 use crate::Error;
+#[cfg(verus_keep_ghost)]
+use vstd::prelude::*;
 
 /// Owns the flat working-memory words (`memory_blocks * 128` `u64`s).
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 pub(crate) struct Memory(Vec<u64>);
+
+#[cfg(verus_keep_ghost)]
+verus! {
+impl Memory {
+    pub closed spec fn words(&self) -> Seq<u64> { self.0@ }
+}
+}
+
+#[cfg_attr(verus_keep_ghost, cfg_eval)]
+#[cfg_attr(verus_keep_ghost, verus_verify)]
+impl Memory {
+    /// Initialize the first two blocks of every lane.
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        requires lanes > 0, lane_length >= 2,
+            lanes as int * lane_length as int <= u32::MAX as int,
+            lanes as int * lane_length as int * 128 == old(self).words().len(),
+        ensures final(self).words() == model::initialized_prefix(
+            old(self).words(), h0@, lane_length as nat, 2 * lanes as nat),
+    ))]
+    pub(crate) fn initialize(&mut self, h0: &[u8; 64], lanes: u32, lane_length: u32) {
+        crate::memory_initialization::initialize_words(&mut self.0, h0, lanes, lane_length);
+    }
+}
 
 impl Memory {
     pub(crate) fn zeroed(blocks: usize) -> Result<Self, Error> {
@@ -18,11 +46,6 @@ impl Memory {
         memory.try_reserve_exact(words).map_err(|_| Error::MemoryAllocationFailed)?;
         memory.resize(words, 0);
         Ok(Memory(memory))
-    }
-
-    /// Initialize the first two blocks of every lane.
-    pub(crate) fn initialize(&mut self, h0: &[u8; 64], lanes: u32, lane_length: u32) {
-        crate::memory_initialization::initialize_words(&mut self.0, h0, lanes, lane_length);
     }
 
     /// Block `i` of the flat working memory.
@@ -91,6 +114,29 @@ impl Drop for Memory {
 #[cfg(test)]
 mod resource_tests {
     use super::*;
+
+    #[test]
+    fn owned_initialize_matches_geometry_and_preserves_other_blocks() {
+        let h0 = [0x5au8; 64];
+        for lanes in 1..=4u32 {
+            let (blocks, lane_length, _) =
+                crate::core_primitives::memory_geometry(8 * lanes + 1, lanes);
+            assert_eq!(blocks, lanes * lane_length);
+            let mut arena = Memory::zeroed(blocks as usize).unwrap();
+            assert_eq!(arena.0.len(), blocks as usize * 128);
+            arena.initialize(&h0, lanes, lane_length);
+            for lane in 0..lanes {
+                for column in 0..lane_length {
+                    let actual = arena.get((lane * lane_length + column) as usize);
+                    if column < 2 {
+                        assert_eq!(actual, &crate::memory_initialization::block(&h0, column, lane));
+                    } else {
+                        assert_eq!(actual, &[0u64; 128]);
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn unrepresentable_arena_is_rejected_before_allocation() {

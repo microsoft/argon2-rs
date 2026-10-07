@@ -22,12 +22,18 @@ pub fn valid_params(lanes: u32, memory: u32, passes: u32) -> bool {
         result.1 == result.0 / lanes,
         result.2 == result.1 / 4,
         result.2 >= 2,
+        result.0 as int == lanes as int * result.1 as int,
+        result.1 >= 8,
 ))]
 pub fn memory_geometry(memory: u32, lanes: u32) -> (u32, u32, u32) {
     let quantum = 4 * lanes;
     let segment = memory / quantum;
     #[cfg(verus_keep_ghost)]
-    proof! { proofs::geometry(memory, lanes, quantum, segment); }
+    proof! {
+        proofs::geometry(memory, lanes, quantum, segment);
+        assert(segment as int * quantum as int == lanes as int * (segment as int * 4))
+            by(nonlinear_arith) requires quantum == 4 * lanes;
+    }
     let blocks = segment * quantum;
     (blocks, segment * 4, segment)
 }

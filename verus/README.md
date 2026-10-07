@@ -20,6 +20,7 @@ and proof blocks. This same-source layout requires no executable export step.
 | [initial_hash_verified.rs](initial_hash_verified.rs) | [../src/initial_hash.rs](../src/initial_hash.rs), [../src/parameters.rs](../src/parameters.rs), [../proofs/initial_hash.rs](../proofs/initial_hash.rs), BLAKE2b helpers | Raw H0 serialization, real enum/Params mapping and checked accepted-input-to-H0 composition; not arena/traversal or the full hash caller. |
 | [parameters_verified.rs](parameters_verified.rs) | [../src/parameters.rs](../src/parameters.rs), core/geometry helpers | Parameter/salt/tag validation returns Ok exactly for its accepted domain; guarded arithmetic is checked. |
 | [memory_initialization_verified.rs](memory_initialization_verified.rs) | [../src/memory_initialization.rs](../src/memory_initialization.rs), [../proofs/memory_initialization.rs](../proofs/memory_initialization.rs), H-prime helpers | Exact H0/LE32 column/lane seed, H-prime(1024) decoding, in-bounds flat placement and real nested initialization loops; allocation/Memory wrapper/caller discharge excluded. |
+| [memory_owner_verified.rs](memory_owner_verified.rs) | [../src/memory.rs](../src/memory.rs), geometry/initialization/G/BLAKE2b helpers | Real owning initialize method under exact word-length/geometry preconditions through a closed ghost view; allocator/general accessors/full caller excluded. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -52,6 +53,7 @@ VERUS=/path/to/verus
 "$VERUS" verus/initial_hash_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/parameters_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/memory_initialization_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/memory_owner_verified.rs --crate-type lib --no-cheating --rlimit 30
 ```
 
 The matching source revision is
@@ -61,16 +63,19 @@ its BUILD.md with the pinned Rust toolchain and matching Z3, then set `VERUS`
 to the resulting executable. Do not infer a downloadable release URL from the
 version string alone. Build Verus in a separate checkout and shell so its Cargo
 wrapper does not replace the ordinary toolchain used for this crate.
-The current strict gate reports **33**, **8**, **11**, **11**, **13**, **21**,
+The current strict gate reports **34**, **8**, **11**, **11**, **13**, **21**,
 **18**, and **8 verified, 0 errors**, respectively, for the combined, scalar,
 row, one-column, eight-column, full-G, BLAKE2b-block, and BLAKE2b-table roots.
 The BLAKE2b buffer/update-step/finalize root reports **23 verified, 0 errors**.
 The production update/streaming-composition root reports **41 verified, 0 errors**.
 The public multipart/prefixed API and H-prime root reports **55 verified, 0 errors**.
-The checked H0/parameter-adapter root reports **91 verified, 0 errors**.
-The parameter-validation root reports **34 verified, 0 errors**. These roots
+The checked H0/parameter-adapter root reports **92 verified, 0 errors**.
+The parameter-validation root reports **35 verified, 0 errors**. These roots
 import existing core/geometry proofs and overlap; counts are not new coverage totals.
 The seed/block/flat-arena initialization root reports **69 verified, 0 errors**.
+The real owning-initialize root reports **118 verified, 0 errors** including
+imported G/core/BLAKE2b helpers. The geometry identity assertion adds one check
+to importing roots; these are overlapping obligations, not coverage totals.
 The parts-prefix definition and bound lemma add two obligations to roots importing
 the streaming proof module. The API root additionally uses ghost-only `cfg_eval`
 to expand nested contracts before `verus_verify`; ordinary Rust erases those attrs.
@@ -192,10 +197,19 @@ and first-two-block placement for every lane, preserving other words via its
 prefix-write model. Both loops have decreases and checked native index arithmetic.
 It requires lanes>0, lane_length>=2, total blocks <=u32::MAX, and exact mutable
 word-slice length `128 * lanes * lane_length`. The real Memory/hash path delegates
-to this helper; the orphan private slot accessor was removed. Allocation/Drop and
-general arena accessors were not changed or verified. The root does not import
-Memory or the full hash caller, so their precondition discharge remains open.
-Remaining caller/owning-arena contracts, allocation and the
+to this helper; the orphan private slot accessor was removed. The separate owning
+root imports and proves the actual Memory::initialize body with a closed ghost
+word view under the same exact size/geometry conditions. Geometry additionally
+proves blocks=lanes*lane_length and lane_length>=8 for valid inputs.
+
+Memory::zeroed, allocation success shape, general accessors and Drop remain
+unverified and unchanged. The installed vstd has no try_reserve_exact mapping;
+an isolated probe confirms that blocker. Annotating the unchanged constructor
+also reaches an unsupported unverified Block::SIZE_WORDS mapping. No new assumed
+specification, trusted allocator body, reserve-policy change or larger limit was
+added. The unsupported constructor annotation was removed; the diagnostic is
+outside repo/package/gates. Full geometry/allocation-to-caller discharge remains
+blocked at that boundary. Remaining caller/allocation contracts and the
 full Argon2 hash loop, SIMD memory safety/equivalence,
 cryptographic security, machine-code timing, and zeroization are outside the
 checked scope. Specification fidelity is a human obligation independent of
