@@ -20,15 +20,15 @@ impl Memory {
         Ok(Memory(memory))
     }
 
+    /// Initialize the first two blocks of every lane.
+    pub(crate) fn initialize(&mut self, h0: &[u8; 64], lanes: u32, lane_length: u32) {
+        crate::memory_initialization::initialize_words(&mut self.0, h0, lanes, lane_length);
+    }
+
     /// Block `i` of the flat working memory.
     #[inline(always)]
     pub(crate) fn get(&self, i: usize) -> &[u64; Block::SIZE_WORDS] {
         (&self.0[i * Block::SIZE_WORDS..(i + 1) * Block::SIZE_WORDS]).try_into().unwrap()
-    }
-
-    #[inline(always)]
-    pub(crate) fn slot(&mut self, i: usize) -> &mut [u64; Block::SIZE_WORDS] {
-        (&mut self.0[i * Block::SIZE_WORDS..(i + 1) * Block::SIZE_WORDS]).try_into().unwrap()
     }
 
     /// Block `r` for reading and block `c` for writing, at the same time.

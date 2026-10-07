@@ -19,6 +19,7 @@ and proof blocks. This same-source layout requires no executable export step.
 | [blake2b_api_verified.rs](blake2b_api_verified.rs) | [../src/blake2b.rs](../src/blake2b.rs), [../proofs/blake2b_long.rs](../proofs/blake2b_long.rs), streaming model/helpers | Real public methods, arbitrary multipart/prefixed wrappers, and both H-prime branches agree with their models; lengths, bounds and loop termination are checked under explicit preconditions. |
 | [initial_hash_verified.rs](initial_hash_verified.rs) | [../src/initial_hash.rs](../src/initial_hash.rs), [../src/parameters.rs](../src/parameters.rs), [../proofs/initial_hash.rs](../proofs/initial_hash.rs), BLAKE2b helpers | Raw H0 serialization, real enum/Params mapping and checked accepted-input-to-H0 composition; not arena/traversal or the full hash caller. |
 | [parameters_verified.rs](parameters_verified.rs) | [../src/parameters.rs](../src/parameters.rs), core/geometry helpers | Parameter/salt/tag validation returns Ok exactly for its accepted domain; guarded arithmetic is checked. |
+| [memory_initialization_verified.rs](memory_initialization_verified.rs) | [../src/memory_initialization.rs](../src/memory_initialization.rs), [../proofs/memory_initialization.rs](../proofs/memory_initialization.rs), H-prime helpers | Exact H0/LE32 column/lane seed, H-prime(1024) decoding, in-bounds flat placement and real nested initialization loops; allocation/Memory wrapper/caller discharge excluded. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -50,6 +51,7 @@ VERUS=/path/to/verus
 "$VERUS" verus/blake2b_api_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/initial_hash_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/parameters_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/memory_initialization_verified.rs --crate-type lib --no-cheating --rlimit 30
 ```
 
 The matching source revision is
@@ -68,6 +70,7 @@ The public multipart/prefixed API and H-prime root reports **55 verified, 0 erro
 The checked H0/parameter-adapter root reports **91 verified, 0 errors**.
 The parameter-validation root reports **34 verified, 0 errors**. These roots
 import existing core/geometry proofs and overlap; counts are not new coverage totals.
+The seed/block/flat-arena initialization root reports **69 verified, 0 errors**.
 The parts-prefix definition and bound lemma add two obligations to roots importing
 the streaming proof module. The API root additionally uses ghost-only `cfg_eval`
 to expand nested contracts before `verus_verify`; ordinary Rust erases those attrs.
@@ -105,7 +108,7 @@ normal successful allocation/execution: a successful scalar call returns the tag
 specified by the encoded Argon2 model, whose RFC fidelity must undergo independent review.
 H0 must use the original requested memory_kib; only arena geometry is rounded.
 
-This is an agreed **target, not a discharged theorem**. Memory initialization,
+This is an agreed **target, not a discharged theorem**. Allocation/owning arena and caller contracts,
 scalar pass/slice/lane traversal, finalization and public caller contracts still
 require composition. Allocation-failure/error recovery, zeroization, timing,
 cryptographic strength, SIMD and version 0x10 are outside this first target.
@@ -158,7 +161,8 @@ failure recovery or zeroization. Independent hashlib vectors use the RFC ceil-ba
 formula at output lengths 1, 32, 64, 65, 96, 97, 128 and 129 for message `abc`;
 they are regression evidence, not independent review of the whole specification.
 The theorem domain above is agreed; the H0 adapter and selected validation boundary
-are now checked. Remaining are full hash-caller contracts, memory initialization,
+are now checked. The flat initialization loop is checked too. Remaining are full
+hash/owning-arena caller contracts, allocation semantics,
 scalar traversal/finalization and API composition.
 A termination or resource
 limit blocker at `--rlimit 30` requires a minimal reproducer and decomposition
@@ -182,7 +186,16 @@ to this checked boundary. Canonical public types live in parameters.rs with thei
 existing root re-exports; the standalone recommended default remains unchanged.
 Error precedence has regression tests, not a separate formal priority theorem.
 These do not prove the entire hash function's callers, allocations or traversal.
-Those caller contracts, initialization, the
+The production flat initializer now proves the exact 72-byte seed
+`H0 || LE32(column) || LE32(lane)`, H-prime(1024), little-endian 128-word decoding,
+and first-two-block placement for every lane, preserving other words via its
+prefix-write model. Both loops have decreases and checked native index arithmetic.
+It requires lanes>0, lane_length>=2, total blocks <=u32::MAX, and exact mutable
+word-slice length `128 * lanes * lane_length`. The real Memory/hash path delegates
+to this helper; the orphan private slot accessor was removed. Allocation/Drop and
+general arena accessors were not changed or verified. The root does not import
+Memory or the full hash caller, so their precondition discharge remains open.
+Remaining caller/owning-arena contracts, allocation and the
 full Argon2 hash loop, SIMD memory safety/equivalence,
 cryptographic security, machine-code timing, and zeroization are outside the
 checked scope. Specification fidelity is a human obligation independent of

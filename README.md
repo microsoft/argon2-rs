@@ -114,6 +114,7 @@ required for the production path.
 | [src/blake2b.rs](src/blake2b.rs), [proofs/blake2b_long.rs](proofs/blake2b_long.rs) | Real public methods, multipart/prefixed wrappers and both H-prime branches match their encoded models under output/capacity/byte-count preconditions. H-prime output length, bounds and termination are checked; closed ghost views preserve private fields. |
 | [src/initial_hash.rs](src/initial_hash.rs), [proofs/initial_hash.rs](proofs/initial_hash.rs) | Exact H0 serialization, real enum/Params adapter and checked accepted-input-to-H0 composition; not the full hash caller/traversal theorem. |
 | [src/parameters.rs](src/parameters.rs) | Canonical public input types and validation acceptance predicate, with guarded arithmetic checked and public root re-exports preserved. |
+| [src/memory_initialization.rs](src/memory_initialization.rs), [proofs/memory_initialization.rs](proofs/memory_initialization.rs) | Exact lane seed, H-prime block, little-endian decoding, in-bounds flat writes and nested first-two-block initialization under geometry/word-slice preconditions; owning arena/allocation/full caller proof excluded. |
 | [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, and index-alpha mapping agree with their contracts; specified bounds and arithmetic safety hold under their preconditions. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
@@ -143,6 +144,8 @@ The new [verus/initial_hash_verified.rs](verus/initial_hash_verified.rs) root re
 **91 verified, 0 errors** for H0 and its checked parameter adapter/boundary.
 [verus/parameters_verified.rs](verus/parameters_verified.rs) reports **34 verified, 0 errors**
 for parameter validation plus imported core/geometry lemmas.
+The new [verus/memory_initialization_verified.rs](verus/memory_initialization_verified.rs)
+root reports **69 verified, 0 errors** for lane-block generation and flat initialization.
 There are 11 executable leaf functions; the check count includes proof helpers.
 Counts are verifier
 checks, not coverage percentages. Mathematical definitions live in
@@ -162,7 +165,9 @@ output lengths 1..=u32::MAX within isize::MAX byte capacity and a representable
 total input count including the four-byte length prefix. This is conditional on
 successful normal allocation/execution, not a recoverable-allocation theorem.
 H0 serialization, enum/Params mapping and the selected accepted-input boundary
-are proved. The entire hash caller and arena/traversal are not. The agreed returned-tag target is forced scalar, version 0x13,
+are proved. The real flat initialization loops are proved under exact arena-size
+and geometry preconditions, preserving untouched slots. Owning allocation/accessors,
+Memory delegation/caller discharge and traversal are not proved. The agreed returned-tag target is forced scalar, version 0x13,
 Argon2d/i/id with accepted/representable inputs and normal successful execution;
 automatic detection, SIMD and legacy 0x10 are excluded from this first theorem.
 Hash traversal and the returned-tag theorem are not proved. Drop/wiping are unchanged; zeroization is

@@ -29,6 +29,7 @@ mod core_impl;
 mod core_primitives;
 mod initial_hash;
 mod memory;
+mod memory_initialization;
 mod parameters;
 #[allow(unsafe_code)]
 mod wipe;

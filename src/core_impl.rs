@@ -119,16 +119,7 @@ pub(crate) fn hash_into_with_backend(
     let mut memory = Memory::zeroed(memory_blocks as usize)?;
 
     // Initial two columns of each lane, from H0 (spec section 3.2).
-    for lane in 0..lanes {
-        for j in 0..2u32 {
-            let mut input = [0u8; 72];
-            input[..64].copy_from_slice(&h0);
-            input[64..68].copy_from_slice(&j.to_le_bytes());
-            input[68..72].copy_from_slice(&lane.to_le_bytes());
-            let bytes = blake2b_long(Block::SIZE_BYTES, &[&input]);
-            *memory.slot((lane * lane_length + j) as usize) = Block::from_bytes(&bytes).0;
-        }
-    }
+    memory.initialize(&h0, lanes, lane_length);
 
     for pass in 0..params.iterations {
         for slice in 0..SYNC_POINTS {

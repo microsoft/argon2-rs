@@ -33,3 +33,7 @@
 	Added error-priority and adapter-mapping regressions; full tag theorem is incomplete.
 - RFC 9106 known-answer, backend-agreement, boundary and resource tests.
 - Streamed initial hashing and volatile wiping of owned arena/BLAKE2b storage.
+- Proved lane seed/H-prime(1024)/little-endian block generation and real nested
+	flat-arena initialization with in-bounds writes and untouched-word preservation.
+	Wired the owning arena to the helper without changing allocation/Drop policy;
+	owning wrapper/caller and full traversal/tag proofs remain incomplete.
