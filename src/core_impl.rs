@@ -230,35 +230,49 @@ where
     }
 
     for i in starting_index..segment_length {
-        let curr_index = slice * segment_length + i;
-        let prev_index = crate::core_primitives::previous_index(curr_index, lane_length);
-        let curr_pos = (lane * lane_length + curr_index) as usize;
-        let prev_pos = (lane * lane_length + prev_index) as usize;
-
+        let (prev_pos, curr_pos) = crate::core_primitives::segment_base_positions(
+            pass,
+            slice,
+            segment_length,
+            lane_length,
+            memory_blocks,
+            lanes,
+            lane,
+            i,
+        );
         let pseudo_rand: u64 = if data_independent {
             if (i as usize) % ADDRESSES_IN_BLOCK == 0 {
                 next_addresses(&mut input_block, &mut address_block);
             }
             address_block.0[(i as usize) % ADDRESSES_IN_BLOCK]
         } else {
-            memory.get(prev_pos)[0]
+            memory.get(prev_pos as usize)[0]
         };
 
-        let mut ref_lane = ((pseudo_rand >> 32) as u32) % lanes;
-        if pass == 0 && slice == 0 {
-            ref_lane = lane;
-        }
-        let same_lane = ref_lane == lane;
-
-        let ref_index =
-            index_alpha(pass, slice, segment_length, lane_length, i, pseudo_rand as u32, same_lane);
-
-        let ref_pos = (ref_lane * lane_length + ref_index) as usize;
+        debug_assert_eq!(lane_length, 4 * segment_length);
+        let ref_pos = crate::core_primitives::segment_reference_position(
+            pass,
+            slice,
+            segment_length,
+            lane_length,
+            memory_blocks,
+            lanes,
+            lane,
+            i,
+            pseudo_rand,
+        );
 
         // `curr` differs from both `prev` and `ref` by the indexing rules, so
         // `fill` may read those two and write `curr`.
         debug_assert!(ref_pos != curr_pos && prev_pos != curr_pos);
-        fill(memory, prev_pos, ref_pos, curr_pos, with_xor, i == starting_index);
+        fill(
+            memory,
+            prev_pos as usize,
+            ref_pos as usize,
+            curr_pos as usize,
+            with_xor,
+            i == starting_index,
+        );
     }
 }
 
@@ -273,21 +287,4 @@ fn next_addresses(input_block: &mut Block, address_block: &mut Block) -> u64 {
     compress(&zero.0, &input_block.0, &mut tmp.0);
     compress(&zero.0, &tmp.0, &mut address_block.0);
     0
-}
-
-/// Maps `(J1, J2)` (folded into `pseudo_rand`) to a reference block index
-/// within the lane (spec section 3.3, "Mapping J1, J2 to the reference
-/// block index"), following the reference algorithm's `index_alpha`.
-#[allow(clippy::too_many_arguments)]
-fn index_alpha(
-    pass: u32,
-    slice: u32,
-    segment_length: u32,
-    lane_length: u32,
-    index: u32,
-    j1: u32,
-    same_lane: bool,
-) -> u32 {
-    debug_assert_eq!(lane_length, 4 * segment_length);
-    crate::core_primitives::index_alpha(pass, slice, segment_length, index, j1, same_lane)
 }

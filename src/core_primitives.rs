@@ -124,6 +124,109 @@ pub fn index_alpha(
     mapped as u32
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires lanes > 0, lane < lanes, slice < 4,
+        lane_length == 4 * segment_length,
+        memory_blocks as int == lanes as int * lane_length as int,
+        specs::valid_position(pass, slice, segment_length, index),
+    ensures result.0 < memory_blocks, result.1 < memory_blocks,
+        result.0 != result.1,
+        result.1 as int == lane as int * lane_length as int
+            + slice as int * segment_length as int + index as int,
+))]
+#[cfg_attr(not(verus_keep_ghost), allow(unused_variables))]
+pub fn segment_base_positions(
+    pass: u32,
+    slice: u32,
+    segment_length: u32,
+    lane_length: u32,
+    memory_blocks: u32,
+    lanes: u32,
+    lane: u32,
+    index: u32,
+) -> (u32, u32) {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(lane_length >= 2);
+        assert((slice as int * segment_length as int + index as int) < lane_length as int)
+            by(nonlinear_arith) requires
+                slice < 4, index < segment_length,
+                lane_length == 4 * segment_length;
+    }
+    let curr_index = slice * segment_length + index;
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(curr_index < lane_length); }
+    let prev_index = previous_index(curr_index, lane_length);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert((lane as int * lane_length as int + curr_index as int) < memory_blocks as int)
+            by(nonlinear_arith) requires
+                lane < lanes, curr_index < lane_length,
+                memory_blocks as int == lanes as int * lane_length as int,
+                0 < lane_length;
+        assert((lane as int * lane_length as int + prev_index as int) < memory_blocks as int)
+            by(nonlinear_arith) requires
+                lane < lanes, prev_index < lane_length,
+                memory_blocks as int == lanes as int * lane_length as int,
+                0 < lane_length;
+    }
+    let curr_pos = lane * lane_length + curr_index;
+    let prev_pos = lane * lane_length + prev_index;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(curr_pos as int == lane as int * lane_length as int + curr_index as int);
+        assert(prev_pos as int == lane as int * lane_length as int + prev_index as int);
+        assert(curr_pos < memory_blocks);
+        assert(prev_pos < memory_blocks);
+        assert(prev_pos != curr_pos);
+    }
+    (prev_pos, curr_pos)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires lanes > 0, lane < lanes, slice < 4,
+        lane_length == 4 * segment_length,
+        memory_blocks as int == lanes as int * lane_length as int,
+        specs::valid_position(pass, slice, segment_length, index),
+    ensures result < memory_blocks,
+))]
+#[cfg_attr(not(verus_keep_ghost), allow(unused_variables))]
+pub fn segment_reference_position(
+    pass: u32,
+    slice: u32,
+    segment_length: u32,
+    lane_length: u32,
+    memory_blocks: u32,
+    lanes: u32,
+    lane: u32,
+    index: u32,
+    pseudo_rand: u64,
+) -> u32 {
+    let mut ref_lane = ((pseudo_rand >> 32) as u32) % lanes;
+    if pass == 0 && slice == 0 {
+        ref_lane = lane;
+    }
+    let same_lane = ref_lane == lane;
+    let ref_index = index_alpha(pass, slice, segment_length, index, pseudo_rand as u32, same_lane);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(ref_lane < lanes);
+        assert(ref_index < lane_length);
+        assert((ref_lane as int * lane_length as int + ref_index as int) < memory_blocks as int)
+            by(nonlinear_arith) requires
+                ref_lane < lanes, ref_index < lane_length,
+                memory_blocks as int == lanes as int * lane_length as int,
+                0 < lane_length;
+    }
+    let ref_pos = ref_lane * lane_length + ref_index;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(ref_pos as int == ref_lane as int * lane_length as int + ref_index as int);
+        assert(ref_pos < memory_blocks);
+    }
+    ref_pos
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

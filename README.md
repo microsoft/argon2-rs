@@ -116,7 +116,7 @@ required for the production path.
 | [src/parameters.rs](src/parameters.rs) | Canonical public input types and validation acceptance predicate, with guarded arithmetic checked and public root re-exports preserved. |
 | [src/memory_initialization.rs](src/memory_initialization.rs), [proofs/memory_initialization.rs](proofs/memory_initialization.rs) | Exact lane seed, H-prime block, little-endian decoding, in-bounds flat writes and nested first-two-block initialization under geometry/word-slice preconditions; owning arena/allocation/full caller proof excluded. |
 | [src/memory.rs](src/memory.rs) | `Memory::zeroed_initialized` validates parameters and salt/tag lengths, checks native-size representability, then composes geometry, exact zeroed allocation shape, and first-two-block initialization without caller preconditions. It relies on a local, unmerged vstd `try_reserve_exact` specification; allocator implementation, general accessors, and the full hash caller remain unproved. |
-| [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, and index-alpha mapping agree with their contracts; specified bounds and arithmetic safety hold under their preconditions. |
+| [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, index-alpha mapping, and split segment-position selectors satisfy their contracts. They prove `prev/curr` bounds and separation before a data-dependent read, then `ref` bounds afterward; `ref != curr` and the encompassing loop remain unproved. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
 Proof roots include [verus/shared.rs](verus/shared.rs),
@@ -127,7 +127,7 @@ Proof roots include [verus/shared.rs](verus/shared.rs),
 [verus/block_g_fill_verified.rs](verus/block_g_fill_verified.rs),
 [verus/blake2b_compress_verified.rs](verus/blake2b_compress_verified.rs), and
 [verus/blake2b_tables_verified.rs](verus/blake2b_tables_verified.rs). The latest
-`--no-cheating --rlimit 30` gate reports, respectively: **34**, **8**, **11**, **11**, **13**,
+`--no-cheating --rlimit 30` gate reports, respectively: **40**, **8**, **11**, **11**, **13**,
 **21**, **18**, and **8 verified obligations**, all with zero errors.
 The BLAKE2b buffer root additionally reports **23 verified, 0 errors** for
 append, full-buffer flush/update step, padding, final-block serialization,
@@ -142,13 +142,13 @@ The parts-prefix model adds two checks to streaming roots. The new
 **55 verified, 0 errors** for the real public methods, multipart/prefixed wrappers,
 H-prime and its model lemmas.
 The new [verus/initial_hash_verified.rs](verus/initial_hash_verified.rs) root reports
-**92 verified, 0 errors** for H0 and its checked parameter adapter/boundary.
-[verus/parameters_verified.rs](verus/parameters_verified.rs) reports **35 verified, 0 errors**
+**98 verified, 0 errors** for H0 and its checked parameter adapter/boundary.
+[verus/parameters_verified.rs](verus/parameters_verified.rs) reports **41 verified, 0 errors**
 for parameter validation plus imported core/geometry lemmas.
 The new [verus/memory_initialization_verified.rs](verus/memory_initialization_verified.rs)
 root reports **69 verified, 0 errors** for lane-block generation and flat initialization.
 [verus/memory_owner_verified.rs](verus/memory_owner_verified.rs) reports
-**122 verified, 0 errors** with the local Verus/vstd review build, for the
+**128 verified, 0 errors** with the local Verus/vstd review build, for the
 geometry/allocation/initialization composition helper, the successful-result
 shape of `Memory::zeroed`, the real owning initializer, and imported helpers.
 The strict application gate passes; its trusted vstd base now

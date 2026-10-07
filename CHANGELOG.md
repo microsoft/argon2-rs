@@ -48,6 +48,7 @@
 	salt/tag lengths and native-size representability, then composes geometry,
 	successful zeroed allocation and first-two-block initialization; wired the core
 	to call it. The full hash body and traversal remain unproved.
-- Proved a same-source memory-construction helper composing geometry, successful
-	zeroed allocation and first-two-block initialization, then wired the Argon2 core
-	to call it. Full hash-caller precondition discharge and traversal remain open.
+- Proved the production split segment-position selectors: predecessor/current
+	positions are in-bounds and distinct before the data-dependent read; reference
+	position is in-bounds afterward. Wired the walker in this order. The ref/current
+	non-aliasing assertion and encompassing traversal proof remain open.
