@@ -20,7 +20,7 @@ and proof blocks. This same-source layout requires no executable export step.
 | [initial_hash_verified.rs](initial_hash_verified.rs) | [../src/initial_hash.rs](../src/initial_hash.rs), [../src/parameters.rs](../src/parameters.rs), [../proofs/initial_hash.rs](../proofs/initial_hash.rs), BLAKE2b helpers | Raw H0 serialization, real enum/Params mapping and checked accepted-input-to-H0 composition; not arena/traversal or the full hash caller. |
 | [parameters_verified.rs](parameters_verified.rs) | [../src/parameters.rs](../src/parameters.rs), core/geometry helpers | Parameter/salt/tag validation returns Ok exactly for its accepted domain; guarded arithmetic is checked. |
 | [memory_initialization_verified.rs](memory_initialization_verified.rs) | [../src/memory_initialization.rs](../src/memory_initialization.rs), [../proofs/memory_initialization.rs](../proofs/memory_initialization.rs), H-prime helpers | Exact H0/LE32 column/lane seed, H-prime(1024) decoding, in-bounds flat placement and real nested initialization loops; allocation/Memory wrapper/caller discharge excluded. |
-| [memory_owner_verified.rs](memory_owner_verified.rs) | [../src/memory.rs](../src/memory.rs), geometry/initialization/G/BLAKE2b helpers | `Memory::zeroed_initialized` composes geometry, successful exact-length zeroed allocation and first-block initialization under explicit valid-parameter/native-size preconditions. Depends on the local trusted vstd `try_reserve_exact` spec; allocator implementation, general accessors and full hash-caller precondition discharge remain outside the proof. |
+| [memory_owner_verified.rs](memory_owner_verified.rs) | [../src/memory.rs](../src/memory.rs), geometry/initialization/G/BLAKE2b helpers | `Memory::zeroed_initialized` validates parameters, salt/tag lengths and native-size representability internally, then composes geometry, successful exact-length zeroed allocation and first-block initialization with no caller preconditions. Depends on the local trusted vstd `try_reserve_exact` spec; allocator implementation, general accessors and full hash body remain outside the proof. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -81,10 +81,10 @@ import existing core/geometry proofs and overlap; counts are not new coverage to
 The seed/block/flat-arena initialization root reports **69 verified, 0 errors**.
 The real owner/constructor root reports **122 verified, 0 errors** including
 imported G/core/BLAKE2b helpers, with the local vstd mapping. It proves the
-geometry/allocation/initialization adapter and the constructor's exact length and
-zero contents on `Ok`, not allocation success or allocator correctness. The
-core now calls the adapter, but the full hash caller is not verified to discharge
-its parameter/native-size preconditions. The geometry identity assertion adds one check
+parameter-checking geometry/allocation/initialization adapter and the constructor's
+exact length and zero contents on `Ok`, not allocation success or allocator
+correctness. The core calls the adapter, but the full hash body and traversal
+are not verified. The geometry identity assertion adds one check
 to importing roots; these are overlapping obligations, not coverage totals.
 The parts-prefix definition and bound lemma add two obligations to roots importing
 the streaming proof module. The API root additionally uses ghost-only `cfg_eval`

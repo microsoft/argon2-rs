@@ -46,25 +46,29 @@ impl Memory {
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 impl Memory {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        requires crate::specs::valid_params(lanes, memory_kib, 1),
-            memory_kib as usize as u32 == memory_kib,
         ensures result matches Ok((memory, blocks, lane_length, segment_length)) ==> (
-            blocks as int == crate::specs::memory_blocks(memory_kib, lanes)
-            && lane_length as int == blocks as int / lanes as int
+            blocks as int == crate::specs::memory_blocks(params.memory_kib, params.parallelism)
+            && lane_length as int == blocks as int / params.parallelism as int
             && segment_length as int == lane_length as int / 4
             && memory.words() == model::initialized_prefix(
                 Seq::new(blocks as nat * 128, |_index: int| 0u64),
-                h0@, lane_length as nat, 2 * lanes as nat,
+                h0@, lane_length as nat, 2 * params.parallelism as nat,
             )
         ),
     ))]
     pub(crate) fn zeroed_initialized(
         h0: &[u8; 64],
-        memory_kib: u32,
-        lanes: u32,
+        params: &crate::Params,
+        salt_len: usize,
+        tag_len: usize,
     ) -> Result<(Self, u32, u32, u32), Error> {
+        params.validate(salt_len, tag_len)?;
+        if params.memory_kib as usize as u32 != params.memory_kib {
+            return Err(Error::MemoryAllocationFailed);
+        }
+        let lanes = params.parallelism;
         let (blocks, lane_length, segment_length) =
-            crate::core_primitives::memory_geometry(memory_kib, lanes);
+            crate::core_primitives::memory_geometry(params.memory_kib, lanes);
         let mut memory = Memory::zeroed(blocks as usize)?;
         #[cfg(verus_keep_ghost)]
         proof! {

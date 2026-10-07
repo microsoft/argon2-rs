@@ -114,7 +114,7 @@ pub(crate) fn hash_into_with_backend(
 
     let lanes = params.parallelism;
     let (mut memory, memory_blocks, lane_length, segment_length) =
-        Memory::zeroed_initialized(&h0, params.memory_kib, lanes)?;
+        Memory::zeroed_initialized(&h0, params, salt.len(), out.len())?;
 
     for pass in 0..params.iterations {
         for slice in 0..SYNC_POINTS {
