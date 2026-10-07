@@ -91,7 +91,8 @@ pub fn reference_area(pass: u32, slice: u32, segment: u32, index: u32, same_lane
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires specs::valid_position(pass, slice, segment, index),
     ensures result as int == specs::index_alpha(pass, slice, segment, index, j1, same_lane),
-        result < 4 * segment,
+    result < 4 * segment,
+    same_lane ==> result as int != slice as int * segment as int + index as int,
 ))]
 pub fn index_alpha(
     pass: u32,
@@ -120,7 +121,12 @@ pub fn index_alpha(
     let lane = (4 * segment) as u64;
     let mapped = (start + relative) % lane;
     #[cfg(verus_keep_ghost)]
-    proof! { proofs::mapped_bound((start + relative) as u64, lane); }
+    proof! {
+        proofs::mapped_bound((start + relative) as u64, lane);
+        if same_lane {
+            proofs::index_alpha_excludes_current(pass, slice, segment, index, j1);
+        }
+    }
     mapped as u32
 }
 
@@ -189,6 +195,8 @@ pub fn segment_base_positions(
         memory_blocks as int == lanes as int * lane_length as int,
         specs::valid_position(pass, slice, segment_length, index),
     ensures result < memory_blocks,
+        result as int != lane as int * lane_length as int
+            + slice as int * segment_length as int + index as int,
 ))]
 #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))]
 pub fn segment_reference_position(
@@ -207,11 +215,33 @@ pub fn segment_reference_position(
         ref_lane = lane;
     }
     let same_lane = ref_lane == lane;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert((slice as int * segment_length as int + index as int) < lane_length as int)
+            by(nonlinear_arith) requires
+                slice < 4, index < segment_length,
+                lane_length == 4 * segment_length;
+    }
+    let curr_index = slice * segment_length + index;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(curr_index < lane_length);
+        assert((lane as int * lane_length as int + curr_index as int) < memory_blocks as int)
+            by(nonlinear_arith) requires
+                lane < lanes, curr_index < lane_length,
+                memory_blocks as int == lanes as int * lane_length as int,
+                lane_length > 0;
+    }
     let ref_index = index_alpha(pass, slice, segment_length, index, pseudo_rand as u32, same_lane);
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(ref_lane < lanes);
         assert(ref_index < lane_length);
+        if same_lane {
+            assert(ref_index as int != curr_index as int);
+        } else {
+            assert(ref_lane != lane);
+        }
         assert((ref_lane as int * lane_length as int + ref_index as int) < memory_blocks as int)
             by(nonlinear_arith) requires
                 ref_lane < lanes, ref_index < lane_length,
@@ -219,10 +249,29 @@ pub fn segment_reference_position(
                 0 < lane_length;
     }
     let ref_pos = ref_lane * lane_length + ref_index;
+    let curr_pos = lane * lane_length + curr_index;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(ref_pos as int == ref_lane as int * lane_length as int + ref_index as int);
+        assert(curr_pos as int == lane as int * lane_length as int + curr_index as int);
         assert(ref_pos < memory_blocks);
+        assert(curr_pos < memory_blocks);
+        if same_lane {
+            assert(ref_lane == lane);
+            assert(ref_index as int != curr_index as int);
+            assert(ref_pos != curr_pos) by(nonlinear_arith) requires
+                ref_pos as int == ref_lane as int * lane_length as int + ref_index as int,
+                curr_pos as int == lane as int * lane_length as int + curr_index as int,
+                ref_lane == lane, ref_index as int != curr_index as int;
+        } else {
+            assert(ref_lane != lane);
+            assert(ref_pos != curr_pos) by(nonlinear_arith) requires
+                ref_pos as int == ref_lane as int * lane_length as int + ref_index as int,
+                curr_pos as int == lane as int * lane_length as int + curr_index as int,
+                ref_lane != lane,
+                ref_lane < lanes, lane < lanes,
+                ref_index < lane_length, curr_index < lane_length;
+        }
     }
     ref_pos
 }

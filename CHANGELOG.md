@@ -49,6 +49,7 @@
 	successful zeroed allocation and first-two-block initialization; wired the core
 	to call it. The full hash body and traversal remain unproved.
 - Proved the production split segment-position selectors: predecessor/current
-	positions are in-bounds and distinct before the data-dependent read; reference
-	position is in-bounds afterward. Wired the walker in this order. The ref/current
-	non-aliasing assertion and encompassing traversal proof remain open.
+	positions are in-bounds and distinct before the data-dependent read; the
+	reference position is in-bounds and differs from current afterward. Wired the
+	walker in this order. Address-block generation and the encompassing traversal
+	proof remain open.

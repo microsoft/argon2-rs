@@ -69,17 +69,17 @@ separate local Verus source worktree at `89f8d65` and its rebuilt vstd
 (`0.2026.10.07.89f8d65.dirty`), which contains the proposed mapping. That mapping
 is unmerged and trusted; a passing `--no-cheating` application gate does not
 prove the allocator implementation.
-The current strict gate reports **40**, **8**, **11**, **11**, **13**, **21**,
+The current strict gate reports **62**, **8**, **11**, **11**, **13**, **21**,
 **18**, and **8 verified, 0 errors**, respectively, for the combined, scalar,
 row, one-column, eight-column, full-G, BLAKE2b-block, and BLAKE2b-table roots.
 The BLAKE2b buffer/update-step/finalize root reports **23 verified, 0 errors**.
 The production update/streaming-composition root reports **41 verified, 0 errors**.
 The public multipart/prefixed API and H-prime root reports **55 verified, 0 errors**.
-The checked H0/parameter-adapter root reports **98 verified, 0 errors**.
-The parameter-validation root reports **41 verified, 0 errors**. These roots
+The checked H0/parameter-adapter root reports **120 verified, 0 errors**.
+The parameter-validation root reports **63 verified, 0 errors**. These roots
 import existing core/geometry proofs and overlap; counts are not new coverage totals.
 The seed/block/flat-arena initialization root reports **69 verified, 0 errors**.
-The real owner/constructor root reports **128 verified, 0 errors** including
+The real owner/constructor root reports **150 verified, 0 errors** including
 imported G/core/BLAKE2b helpers, with the local vstd mapping. It proves the
 parameter-checking geometry/allocation/initialization adapter and the constructor's
 exact length and zero contents on `Ok`, not allocation success or allocator
@@ -90,19 +90,15 @@ The parts-prefix definition and bound lemma add two obligations to roots importi
 the streaming proof module. The API root additionally uses ghost-only `cfg_eval`
 to expand nested contracts before `verus_verify`; ordinary Rust erases those attrs.
 The initialization helper adds two obligations to each root importing the tables.
-The shared root now includes two split segment-position selector contracts: the
-base selector proves `prev`/`curr` are in bounds and distinct before a
-data-dependent read; the reference selector proves `ref` is in bounds after
-`pseudo_rand` is available. `ref != curr`, address-block generation and the
-production segment loop are not proved by these leaves.
+The shared root includes two production selector contracts. The base selector
+proves `prev`/`curr` are in bounds and distinct before the data-dependent read;
+the reference selector proves `ref` is in bounds and `ref != curr` after
+`pseudo_rand` is available. The runtime debug assertion remains as a guard.
+Address-block generation, the encompassing segment loop, and outer traversal are
+not proved by these leaves.
 The shared step-progress lemma adds one obligation to every root, not new G
 or whole-hash coverage.
 Counts are verifier obligations, not function or coverage counts.
-The shared/core-primitives scope now includes the production split segment
-selector: it proves `prev`, `ref` and `curr` are in the arena and `prev != curr`.
-The separate `ref != curr` condition remains a runtime debug assertion, and the
-loop that obtains data-dependent `pseudo_rand` and traverses the segment is not
-verified as a whole.
 Require a successful exit and a positive verification summary with zero errors
 for each root. Compile-only output or expansion output is not proof evidence.
 
