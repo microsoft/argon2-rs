@@ -29,6 +29,7 @@ mod core_impl;
 mod core_primitives;
 mod initial_hash;
 mod memory;
+mod parameters;
 #[allow(unsafe_code)]
 mod wipe;
 // SIMD and volatile wiping are the only handwritten unsafe boundaries.
@@ -38,100 +39,11 @@ mod simd;
 
 pub use block::Block;
 pub use core_impl::Backend;
-
-/// The Argon2 variant, selecting the reference-block indexing strategy
-/// (spec section 3, "type y of Argon2").
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u32)]
-pub enum Algorithm {
-    /// Data-dependent addressing. Faster, but vulnerable to side-channel
-    /// (cache-timing) attacks; suitable for cryptocurrencies/backends only.
-    Argon2d = 0,
-    /// Data-independent addressing. Recommended for password hashing.
-    Argon2i = 1,
-    /// Hybrid: data-independent for the first half of the first pass,
-    /// data-dependent afterwards. The generally recommended default.
-    Argon2id = 2,
-}
-
-/// The Argon2 version byte (spec section 3.1).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u32)]
-pub enum Version {
-    /// Original PHC submission version. Kept only for compatibility with
-    /// legacy hashes; do not use for new hashes.
-    V0x10 = 0x10,
-    /// Current version: passes after the first XOR the newly computed
-    /// block with the block's old contents, closing a tradeoff-attack gap
-    /// present in V0x10. Use this for all new hashes.
-    V0x13 = 0x13,
-}
-
-/// Tunable Argon2 parameters (spec section 3.1, "Secondary inputs").
-#[derive(Debug, Clone, Copy)]
-pub struct Params {
-    /// Degree of parallelism `p`, 1..=2^24-1.
-    pub parallelism: u32,
-    /// Memory size `m` in kibibytes, must be >= 8*p.
-    pub memory_kib: u32,
-    /// Number of passes over memory `t`, >= 1.
-    pub iterations: u32,
-}
+pub use parameters::{Algorithm, Error, Params, Version};
 
 impl Params {
     pub const RECOMMENDED: Params = Params { parallelism: 4, memory_kib: 19 * 1024, iterations: 2 };
-
-    fn validate(&self, salt_len: usize, tag_len: usize) -> Result<(), Error> {
-        if !core_primitives::valid_params(self.parallelism, self.memory_kib, self.iterations) {
-            if self.parallelism == 0 || self.parallelism > (1 << 24) - 1 {
-                return Err(Error::InvalidParallelism);
-            }
-            if self.memory_kib < 8 * self.parallelism {
-                return Err(Error::MemoryTooSmall);
-            }
-            return Err(Error::InvalidIterations);
-        }
-        if salt_len > u32::MAX as usize || tag_len > u32::MAX as usize {
-            return Err(Error::InputTooLong);
-        }
-        if salt_len < 8 {
-            return Err(Error::SaltTooShort);
-        }
-        if tag_len < 4 {
-            return Err(Error::TagTooShort);
-        }
-        Ok(())
-    }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Error {
-    InvalidParallelism,
-    MemoryTooSmall,
-    InvalidIterations,
-    SaltTooShort,
-    TagTooShort,
-    InputTooLong,
-    MemoryAllocationFailed,
-}
-
-impl ::core::fmt::Display for Error {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        let msg = match self {
-            Error::InvalidParallelism => "parallelism must be in 1..=2^24-1",
-            Error::MemoryTooSmall => "memory_kib must be >= 8 * parallelism",
-            Error::InvalidIterations => "iterations must be >= 1",
-            Error::SaltTooShort => "salt must be >= 8 bytes",
-            Error::TagTooShort => "output tag must be >= 4 bytes",
-            Error::InputTooLong => "input and output lengths must fit in u32",
-            Error::MemoryAllocationFailed => "working-memory allocation failed",
-        };
-        f.write_str(msg)
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for Error {}
 
 /// A configured Argon2 hasher with automatic or explicitly selected backend.
 ///

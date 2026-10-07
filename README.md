@@ -112,7 +112,8 @@ required for the production path.
 | [src/blake2b_compress.rs](src/blake2b_compress.rs), [src/blake2b_tables.rs](src/blake2b_tables.rs), and [src/blake2b_buffer.rs](src/blake2b_buffer.rs) | One block-to-state transition, RFC tables/unkeyed initialization, buffer append/flush, update step, and final-block transition. |
 | [src/blake2b_update.rs](src/blake2b_update.rs), [proofs/blake2b_update.rs](proofs/blake2b_update.rs) | The production loop establishes block-prefix semantics and a modeled final digest; binary partition composition proves digest independence for any two-part split under the semantic contracts. |
 | [src/blake2b.rs](src/blake2b.rs), [proofs/blake2b_long.rs](proofs/blake2b_long.rs) | Real public methods, multipart/prefixed wrappers and both H-prime branches match their encoded models under output/capacity/byte-count preconditions. H-prime output length, bounds and termination are checked; closed ghost views preserve private fields. |
-| [src/initial_hash.rs](src/initial_hash.rs), [proofs/initial_hash.rs](proofs/initial_hash.rs) | Exact six-word H0 header and four length-prefixed input order, composed with verified BLAKE2b under u32 input-length bounds; not the full parameter adapter/caller theorem. |
+| [src/initial_hash.rs](src/initial_hash.rs), [proofs/initial_hash.rs](proofs/initial_hash.rs) | Exact H0 serialization, real enum/Params adapter and checked accepted-input-to-H0 composition; not the full hash caller/traversal theorem. |
+| [src/parameters.rs](src/parameters.rs) | Canonical public input types and validation acceptance predicate, with guarded arithmetic checked and public root re-exports preserved. |
 | [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, and index-alpha mapping agree with their contracts; specified bounds and arithmetic safety hold under their preconditions. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
@@ -139,7 +140,9 @@ The parts-prefix model adds two checks to streaming roots. The new
 **55 verified, 0 errors** for the real public methods, multipart/prefixed wrappers,
 H-prime and its model lemmas.
 The new [verus/initial_hash_verified.rs](verus/initial_hash_verified.rs) root reports
-**59 verified, 0 errors** for the H0 serializer/composition helper.
+**91 verified, 0 errors** for H0 and its checked parameter adapter/boundary.
+[verus/parameters_verified.rs](verus/parameters_verified.rs) reports **34 verified, 0 errors**
+for parameter validation plus imported core/geometry lemmas.
 There are 11 executable leaf functions; the check count includes proof helpers.
 Counts are verifier
 checks, not coverage percentages. Mathematical definitions live in
@@ -158,8 +161,8 @@ output lengths 1..=64 and representable total byte counts. H-prime is checked fo
 output lengths 1..=u32::MAX within isize::MAX byte capacity and a representable
 total input count including the four-byte length prefix. This is conditional on
 successful normal allocation/execution, not a recoverable-allocation theorem.
-The raw-field H0 helper is proved, not its full enum/Params adapter and caller
-preconditions. The agreed returned-tag target is forced scalar, version 0x13,
+H0 serialization, enum/Params mapping and the selected accepted-input boundary
+are proved. The entire hash caller and arena/traversal are not. The agreed returned-tag target is forced scalar, version 0x13,
 Argon2d/i/id with accepted/representable inputs and normal successful execution;
 automatic detection, SIMD and legacy 0x10 are excluded from this first theorem.
 Hash traversal and the returned-tag theorem are not proved. Drop/wiping are unchanged; zeroization is

@@ -27,6 +27,9 @@
 	algorithms and accepted/representable successful inputs, excluding legacy/SIMD.
 - Proved the production H0 raw-field header/input serialization and BLAKE2b
 	composition; preserved original requested memory and added independent H0 vectors.
-	Parameter adapter/callers, arena initialization and traversal remain unproved.
+	Arena initialization, full hash callers and traversal remain unproved.
+- Proved canonical parameter validation and enum/Params checked-H0 adaptation;
+	preserved public re-exports/defaults and wired the hash entry through this boundary.
+	Added error-priority and adapter-mapping regressions; full tag theorem is incomplete.
 - RFC 9106 known-answer, backend-agreement, boundary and resource tests.
 - Streamed initial hashing and volatile wiping of owned arena/BLAKE2b storage.

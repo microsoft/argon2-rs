@@ -7,6 +7,13 @@ use vstd::prelude::*;
 
 #[path = "../specs/mod.rs"]
 mod specs;
+#[path = "../proofs/geometry.rs"]
+mod proofs;
+#[path = "../src/core_primitives.rs"]
+mod core_primitives;
+#[path = "../src/parameters.rs"]
+mod parameters;
+pub use parameters::{Algorithm, Error, Params, Version};
 #[path = "../proofs/blake2b_update.rs"]
 mod blake2b_update_model;
 #[path = "../proofs/blake2b_long.rs"]

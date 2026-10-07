@@ -100,17 +100,21 @@ pub(crate) fn hash_into_with_backend(
     ad: &[u8],
     out: &mut [u8],
 ) -> Result<(), Error> {
-    params.validate(salt.len(), out.len())?;
-    if [password.len(), secret.len(), ad.len()].into_iter().any(|len| len > u32::MAX as usize) {
-        return Err(Error::InputTooLong);
-    }
+    let h0 = crate::initial_hash::checked_h0(
+        algorithm,
+        version,
+        params,
+        password,
+        salt,
+        secret,
+        ad,
+        out.len(),
+    )?;
     let backend = if backend.is_available() { backend } else { Backend::Scalar };
 
     let lanes = params.parallelism;
     let (memory_blocks, lane_length, segment_length) =
         crate::core_primitives::memory_geometry(params.memory_kib, lanes);
-
-    let h0 = compute_h0(algorithm, version, params, password, salt, secret, ad, out.len());
 
     let mut memory = Memory::zeroed(memory_blocks as usize)?;
 
@@ -165,28 +169,6 @@ pub(crate) fn hash_into_with_backend(
     let tag = blake2b_long(out.len(), &[&final_block.to_bytes()]);
     out.copy_from_slice(&tag);
     Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-fn compute_h0(
-    algorithm: Algorithm,
-    version: Version,
-    params: &Params,
-    password: &[u8],
-    salt: &[u8],
-    secret: &[u8],
-    ad: &[u8],
-    tag_len: usize,
-) -> [u8; 64] {
-    let fields = [
-        params.parallelism,
-        tag_len as u32,
-        params.memory_kib,
-        params.iterations,
-        version as u32,
-        algorithm as u32,
-    ];
-    crate::initial_hash::compute_h0(&fields, password, salt, secret, ad)
 }
 
 /// Everything that identifies one segment (one lane x one slice of one pass).

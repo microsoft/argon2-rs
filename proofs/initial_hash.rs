@@ -2,8 +2,26 @@ use vstd::prelude::*;
 use crate::specs;
 use crate::blake2b_update_model as stream;
 use crate::blake2b_long_model as bytes;
+use crate::parameters::{Algorithm, Params, Version};
 
 verus! {
+pub open spec fn algorithm_word(algorithm: Algorithm) -> u32 {
+    match algorithm { Algorithm::Argon2d => 0, Algorithm::Argon2i => 1, Algorithm::Argon2id => 2 }
+}
+
+pub open spec fn version_word(version: Version) -> u32 {
+    match version { Version::V0x10 => 0x10, Version::V0x13 => 0x13 }
+}
+
+pub open spec fn parameter_fields(
+    algorithm: Algorithm, version: Version, params: &Params, tag_len: nat,
+) -> Seq<u32>
+    recommends tag_len <= u32::MAX as nat,
+{
+    seq![params.parallelism, tag_len as u32, params.memory_kib, params.iterations,
+        version_word(version), algorithm_word(algorithm)]
+}
+
 pub proof fn parts_step(parts: Seq<&[u8]>, completed: nat)
     requires completed <= parts.len(),
     ensures completed == 0 ==> stream::blake2b_parts_prefix(parts, completed) == Seq::empty(),

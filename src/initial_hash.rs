@@ -2,6 +2,7 @@
 use crate::blake2b_update_model as stream;
 #[cfg(verus_keep_ghost)]
 use crate::initial_hash_model as model;
+use crate::{Algorithm, Error, Params, Version};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
@@ -70,8 +71,107 @@ pub(crate) fn compute_h0(
     crate::blake2b::blake2b(64, &parts)
 }
 
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires tag_len <= u32::MAX as usize,
+        password.len() <= u32::MAX as usize, salt.len() <= u32::MAX as usize,
+        secret.len() <= u32::MAX as usize, ad.len() <= u32::MAX as usize,
+    ensures result@ == model::h0(
+        model::parameter_fields(algorithm, version, params, tag_len as nat),
+        password@, salt@, secret@, ad@),
+))]
+pub(crate) fn compute_from_params(
+    algorithm: Algorithm,
+    version: Version,
+    params: &Params,
+    password: &[u8],
+    salt: &[u8],
+    secret: &[u8],
+    ad: &[u8],
+    tag_len: usize,
+) -> [u8; 64] {
+    let fields = [
+        params.parallelism,
+        tag_len as u32,
+        params.memory_kib,
+        params.iterations,
+        version as u32,
+        algorithm as u32,
+    ];
+    compute_h0(&fields, password, salt, secret, ad)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result.is_ok() == (
+        crate::specs::valid_params(params.parallelism, params.memory_kib, params.iterations)
+        && 8 <= salt.len() <= u32::MAX as usize && 4 <= tag_len <= u32::MAX as usize
+        && password.len() <= u32::MAX as usize && secret.len() <= u32::MAX as usize
+        && ad.len() <= u32::MAX as usize),
+        result matches Ok(digest) ==> digest@ == model::h0(
+            model::parameter_fields(algorithm, version, params, tag_len as nat),
+            password@, salt@, secret@, ad@),
+))]
+pub(crate) fn checked_h0(
+    algorithm: Algorithm,
+    version: Version,
+    params: &Params,
+    password: &[u8],
+    salt: &[u8],
+    secret: &[u8],
+    ad: &[u8],
+    tag_len: usize,
+) -> Result<[u8; 64], Error> {
+    params.validate(salt.len(), tag_len)?;
+    if password.len() > u32::MAX as usize
+        || secret.len() > u32::MAX as usize
+        || ad.len() > u32::MAX as usize
+    {
+        return Err(Error::InputTooLong);
+    }
+    Ok(compute_from_params(algorithm, version, params, password, salt, secret, ad, tag_len))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn checked_adapter_matches_raw_fields_and_preserves_rejection() {
+        use crate::{Algorithm, Error, Params, Version};
+        let params = Params { parallelism: 4, memory_kib: 35, iterations: 3 };
+        for algorithm in [Algorithm::Argon2d, Algorithm::Argon2i, Algorithm::Argon2id] {
+            for version in [Version::V0x10, Version::V0x13] {
+                let fields = [4, 32, 35, 3, version as u32, algorithm as u32];
+                let expected = super::compute_h0(&fields, b"password", b"saltsalt", b"key", b"ad");
+                assert_eq!(
+                    super::checked_h0(
+                        algorithm,
+                        version,
+                        &params,
+                        b"password",
+                        b"saltsalt",
+                        b"key",
+                        b"ad",
+                        32
+                    ),
+                    Ok(expected)
+                );
+            }
+        }
+        assert_eq!(
+            super::checked_h0(
+                Algorithm::Argon2id,
+                Version::V0x13,
+                &params,
+                b"",
+                b"short",
+                b"",
+                b"",
+                3
+            ),
+            Err(Error::SaltTooShort)
+        );
+    }
+
     #[test]
     fn h0_matches_independent_rfc_field_vectors() {
         let vectors = [
