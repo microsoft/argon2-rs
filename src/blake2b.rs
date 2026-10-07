@@ -289,7 +289,7 @@ pub fn blake2b_long(out_len: usize, parts: &[&[u8]]) -> Vec<u8> {
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result@ == long_model::length_prefix(length),
 ))]
-fn h_prime_length(length: u32) -> [u8; 4] {
+pub(crate) fn h_prime_length(length: u32) -> [u8; 4] {
     [length as u8, (length >> 8) as u8, (length >> 16) as u8, (length >> 24) as u8]
 }
 

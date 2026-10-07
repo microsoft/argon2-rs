@@ -27,6 +27,7 @@ mod block_g_fill;
 mod block_primitives;
 mod core_impl;
 mod core_primitives;
+mod initial_hash;
 mod memory;
 #[allow(unsafe_code)]
 mod wipe;

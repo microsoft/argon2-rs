@@ -25,3 +25,5 @@ mkdir -p target/verus
   --rlimit 30
 "$verus_bin" verus/blake2b_api_verified.rs --crate-type lib --no-cheating \
   --rlimit 30
+"$verus_bin" verus/initial_hash_verified.rs --crate-type lib --no-cheating \
+  --rlimit 30

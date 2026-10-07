@@ -17,6 +17,7 @@ and proof blocks. This same-source layout requires no executable export step.
 | [blake2b_buffer_verified.rs](blake2b_buffer_verified.rs) | [../src/blake2b_buffer.rs](../src/blake2b_buffer.rs), compression helpers | Buffer append, full-buffer flush/update step, final padding, and digest serialization. |
 | [blake2b_update_verified.rs](blake2b_update_verified.rs) | [../src/blake2b_update.rs](../src/blake2b_update.rs), [../proofs/blake2b_update.rs](../proofs/blake2b_update.rs), buffer helpers | Production update establishes block-prefix semantics and a modeled final digest; binary partition composition and digest independence are proved. |
 | [blake2b_api_verified.rs](blake2b_api_verified.rs) | [../src/blake2b.rs](../src/blake2b.rs), [../proofs/blake2b_long.rs](../proofs/blake2b_long.rs), streaming model/helpers | Real public methods, arbitrary multipart/prefixed wrappers, and both H-prime branches agree with their models; lengths, bounds and loop termination are checked under explicit preconditions. |
+| [initial_hash_verified.rs](initial_hash_verified.rs) | [../src/initial_hash.rs](../src/initial_hash.rs), [../proofs/initial_hash.rs](../proofs/initial_hash.rs), BLAKE2b helpers | Exact six-word H0 header, ordered four length-prefixed inputs and H0 digest agreement, under input-length preconditions. The core parameter adapter is not imported/proved by this root. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -46,6 +47,7 @@ VERUS=/path/to/verus
 "$VERUS" verus/blake2b_buffer_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/blake2b_update_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/blake2b_api_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/initial_hash_verified.rs --crate-type lib --no-cheating --rlimit 30
 ```
 
 The matching source revision is
@@ -61,6 +63,7 @@ row, one-column, eight-column, full-G, BLAKE2b-block, and BLAKE2b-table roots.
 The BLAKE2b buffer/update-step/finalize root reports **23 verified, 0 errors**.
 The production update/streaming-composition root reports **41 verified, 0 errors**.
 The public multipart/prefixed API and H-prime root reports **55 verified, 0 errors**.
+The H0 serialization/composition helper root reports **59 verified, 0 errors**.
 The parts-prefix definition and bound lemma add two obligations to roots importing
 the streaming proof module. The API root additionally uses ghost-only `cfg_eval`
 to expand nested contracts before `verus_verify`; ordinary Rust erases those attrs.
@@ -82,7 +85,28 @@ Do not set `verus_keep_ghost` for normal Cargo builds. If building Verus from
 source, keep its activated build shell separate: activation can replace the
 ordinary Cargo command with Verus's build wrapper.
 
-## Guarantees And Limits
+## Returned-Tag Target
+
+The agreed first hash-level target is `Backend::Scalar`, `Version::V0x13`, and
+all three algorithms: Argon2d, Argon2i and Argon2id. Automatic detection and SIMD
+are excluded; the public theorem must identify a forced scalar call, not assume
+the default public API selected scalar. Legacy `0x10` is a separate extension.
+
+The input domain is the existing API-accepted parameters and lengths: parallelism
+1..=2^24-1, memory_kib >= 8 * parallelism, iterations >= 1, salt length 8..=u32::MAX,
+tag length 4..=u32::MAX, and password/secret/associated-data lengths <= u32::MAX.
+Arena sizes and output capacity must be representable on the target platform,
+including the H-prime byte-Vec isize::MAX bound. The claim is conditional on
+normal successful allocation/execution: a successful scalar call returns the tag
+specified by the encoded Argon2 model, whose RFC fidelity must undergo independent review.
+H0 must use the original requested memory_kib; only arena geometry is rounded.
+
+This is an agreed **target, not a discharged theorem**. The H0 parameter adapter, memory initialization,
+scalar pass/slice/lane traversal, finalization and public caller contracts still
+require composition. Allocation-failure/error recovery, zeroization, timing,
+cryptographic strength, SIMD and version 0x10 are outside this first target.
+
+## Checked Slices
 
 The checks establish agreement with the encoded mathematical definitions and
 arithmetic/bounds safety under each function's preconditions. Rotation requires
@@ -129,8 +153,9 @@ successful allocation/execution in the standard collection model, not allocation
 failure recovery or zeroization. Independent hashlib vectors use the RFC ceil-based
 formula at output lengths 1, 32, 64, 65, 96, 97, 128 and 129 for message `abc`;
 they are regression evidence, not independent review of the whole specification.
-The remaining order is an explicit theorem-domain
-decision, and only then scalar hash-level composition. A termination or resource
+The theorem domain above is agreed; the remaining order is H0 adapter/caller
+contracts, memory initialization, scalar traversal/finalization and API composition.
+A termination or resource
 limit blocker at `--rlimit 30` requires a minimal reproducer and decomposition
 analysis, not assumptions or a larger limit. Every proved slice must pass the
 standalone `--no-cheating` gate and Cargo tests before synchronization into Edge.
@@ -139,7 +164,13 @@ H-prime, initialization/finalization, and hash traversal are composed and checke
 
 Core leaves and G are integrated into the hash path. Neither same-source
 compilation nor leaf verification proves all hash-loop callers meet these
-preconditions. H0 composition, the
+preconditions. The raw-field H0 helper now agrees with its ordered RFC message
+and digest model: header words are p, tag length, requested m, t, version and type,
+followed by password/salt/secret/ad length and contents. Each input length must fit
+u32. The production adapter passes original memory_kib; independent hashlib tests
+cover all algorithm IDs and requested m=35, while existing geometry tests also pass.
+These do not prove the unannotated enum/Params adapter or accepted-input caller
+contracts. Those adapters, initialization, the
 full Argon2 hash loop, SIMD memory safety/equivalence,
 cryptographic security, machine-code timing, and zeroization are outside the
 checked scope. Specification fidelity is a human obligation independent of

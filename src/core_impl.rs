@@ -178,22 +178,15 @@ fn compute_h0(
     ad: &[u8],
     tag_len: usize,
 ) -> [u8; 64] {
-    let mut state = crate::blake2b::Blake2b::new(64);
-    for value in [
+    let fields = [
         params.parallelism,
         tag_len as u32,
         params.memory_kib,
         params.iterations,
         version as u32,
         algorithm as u32,
-    ] {
-        state.update(&value.to_le_bytes());
-    }
-    for input in [password, salt, secret, ad] {
-        state.update(&(input.len() as u32).to_le_bytes());
-        state.update(input);
-    }
-    state.finalize()
+    ];
+    crate::initial_hash::compute_h0(&fields, password, salt, secret, ad)
 }
 
 /// Everything that identifies one segment (one lane x one slice of one pass).

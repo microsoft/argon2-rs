@@ -23,5 +23,10 @@
 	including little-endian length encoding, exact output length and loop termination.
 	Added independent hashlib boundary vectors; allocation failure recovery,
 	zeroization and returned Argon2-tag composition remain outside the proof.
+- Agreed first returned-tag target: forced scalar, version 0x13, all three
+	algorithms and accepted/representable successful inputs, excluding legacy/SIMD.
+- Proved the production H0 raw-field header/input serialization and BLAKE2b
+	composition; preserved original requested memory and added independent H0 vectors.
+	Parameter adapter/callers, arena initialization and traversal remain unproved.
 - RFC 9106 known-answer, backend-agreement, boundary and resource tests.
 - Streamed initial hashing and volatile wiping of owned arena/BLAKE2b storage.
