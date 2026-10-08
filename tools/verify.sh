@@ -35,3 +35,5 @@ mkdir -p target/verus
   --rlimit 30
 "$verus_bin" verus/core_address_verified.rs --crate-type lib --no-cheating \
   --rlimit 30
+"$verus_bin" verus/core_segment_verified.rs --crate-type lib --no-cheating \
+  --rlimit 30

@@ -116,7 +116,8 @@ required for the production path.
 | [src/parameters.rs](src/parameters.rs) | Canonical public input types and validation acceptance predicate, with guarded arithmetic checked and public root re-exports preserved. |
 | [src/memory_initialization.rs](src/memory_initialization.rs), [proofs/memory_initialization.rs](proofs/memory_initialization.rs) | Exact lane seed, H-prime block, little-endian decoding, in-bounds flat writes and nested first-two-block initialization under geometry/word-slice preconditions; owning arena/allocation/full caller proof excluded. |
 | [src/memory.rs](src/memory.rs) | `Memory::zeroed_initialized` validates parameters and salt/tag lengths, checks native-size representability, then composes geometry, exact zeroed allocation shape, and first-two-block initialization without caller preconditions. It relies on a local, unmerged vstd `try_reserve_exact` specification; allocator implementation, general accessors, and the full hash caller remain unproved. |
-| [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, index-alpha mapping, and split segment-position selectors satisfy their contracts. They prove `prev/curr` bounds and separation before a data-dependent read, then `ref` bounds and `ref != curr` afterward; the encompassing loop remains unproved. |
+| [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, index-alpha mapping and exact split segment-position selectors satisfy their contracts. |
+| [src/core_segment.rs](src/core_segment.rs) | The real shared walker and scalar adapter agree with the exact segment-prefix arena model under valid geometry and exact arena size; outer traversal remains unproved. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
 Proof roots include [verus/shared.rs](verus/shared.rs),
@@ -148,7 +149,7 @@ for parameter validation plus imported core/geometry lemmas.
 The new [verus/memory_initialization_verified.rs](verus/memory_initialization_verified.rs)
 root reports **69 verified, 0 errors** for lane-block generation and flat initialization.
 [verus/memory_owner_verified.rs](verus/memory_owner_verified.rs) reports
-**153 verified, 0 errors** with the local Verus/vstd review build, for the
+**155 verified, 0 errors** with the local Verus/vstd review build, for the
 geometry/allocation/initialization composition helper, the successful-result
 shape of `Memory::zeroed`, the real owning initializer, and imported helpers.
 The strict application gate passes; its trusted vstd base now
@@ -179,8 +180,11 @@ then composes geometry, allocation and initialization; the core calls it.
 The helper has no caller preconditions. The address-block helpers now prove exact
 input encoding, zero counter/tail, counter increment, two scalar G transitions,
 initial scheduling at index 0/2 and per-index regeneration/word selection.
-The schedule invariant throughout the real segment loop, full hash body and
-traversal remain unverified. The scalar callback now uses proved gather/G/scatter:
+The real scalar segment loop now proves exact arena equality with its
+`segment_prefix` model, under valid segment geometry and exact arena size.
+It covers both addressing modes, counter scheduling and the scalar callback;
+the segment root reports **170 verified, 0 errors**. Outer pass/slice/lane
+traversal and the full hash caller remain unverified. The scalar callback uses proved gather/G/scatter:
 it updates exactly one block and preserves all other words. Owned block copies
 avoid unsupported borrowed slice-to-array conversion; their performance impact
 has not been benchmarked. General borrowed accessors remain unverified.
@@ -191,7 +195,9 @@ upstream-approved release. No application-local assumption was added. The agreed
 returned-tag target is forced scalar, version 0x13,
 Argon2d/i/id with accepted/representable inputs and normal successful execution;
 automatic detection, SIMD and legacy 0x10 are excluded from this first theorem.
-Hash traversal and the returned-tag theorem are not proved. Drop/wiping are unchanged; zeroization is
+The original plan's scalar composition step 4.2 (one segment) is complete;
+steps 4.3 (outer traversal), 4.4 (finalization) and 4.5 (returned-tag/API)
+remain open. Hash traversal and the returned-tag theorem are not proved. Drop/wiping are unchanged; zeroization is
 not part of these functional proofs. The full hash loop,
 caller invariants, SIMD equivalence and memory safety, permutation bijectivity,
 cryptographic security, timing, and zeroization are not established

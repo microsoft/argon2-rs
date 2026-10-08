@@ -22,6 +22,7 @@ and proof blocks. This same-source layout requires no executable export step.
 | [memory_initialization_verified.rs](memory_initialization_verified.rs) | [../src/memory_initialization.rs](../src/memory_initialization.rs), [../proofs/memory_initialization.rs](../proofs/memory_initialization.rs), H-prime helpers | Exact H0/LE32 column/lane seed, H-prime(1024) decoding, in-bounds flat placement and real nested initialization loops; allocation/Memory wrapper/caller discharge excluded. |
 | [memory_owner_verified.rs](memory_owner_verified.rs) | [../src/memory.rs](../src/memory.rs), geometry/initialization/G/BLAKE2b helpers | `Memory::zeroed_initialized` validates parameters, salt/tag lengths and native-size representability internally, then composes geometry, successful exact-length zeroed allocation and first-block initialization with no caller preconditions. Depends on the local trusted vstd `try_reserve_exact` spec; allocator implementation, general accessors and full hash body remain outside the proof. |
 | [core_address_verified.rs](core_address_verified.rs) | [../src/core_address.rs](../src/core_address.rs), [../src/block_g_fill.rs](../src/block_g_fill.rs) | The real counter increment and two scalar G calls compose to the generated address-block model, under a non-overflow precondition; per-segment scheduling and traversal remain outside. |
+| [core_segment_verified.rs](core_segment_verified.rs) | [../src/core_segment.rs](../src/core_segment.rs), address/indexing/arena helpers | The real shared walker and checked scalar callback yield exact `segment_prefix` arena contents, with both addressing modes, schedule invariants and bounds; outer traversal/caller discharge remains outside. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -56,6 +57,7 @@ VERUS=/path/to/verus
 "$VERUS" verus/memory_initialization_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/memory_owner_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/core_address_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/core_segment_verified.rs --crate-type lib --no-cheating --rlimit 30
 ```
 
 The matching source revision is
@@ -81,7 +83,7 @@ The checked H0/parameter-adapter root reports **120 verified, 0 errors**.
 The parameter-validation root reports **63 verified, 0 errors**. These roots
 import existing core/geometry proofs and overlap; counts are not new coverage totals.
 The seed/block/flat-arena initialization root reports **69 verified, 0 errors**.
-The real owner/constructor root reports **153 verified, 0 errors** including
+The real owner/constructor root reports **155 verified, 0 errors** including
 imported G/core/BLAKE2b helpers, with the local vstd mapping. It proves the
 parameter-checking geometry/allocation/initialization adapter and the constructor's
 exact length and zero contents on `Ok`, not allocation success or allocator
@@ -89,7 +91,7 @@ correctness. The core calls the adapter, but the full hash body and traversal
 are not verified.
 The real scalar callback now uses verified gather/G/scatter. Its contract
 updates exactly the destination block and preserves every other arena word;
-general borrowed accessors and the enclosing segment loop remain unverified.
+general borrowed accessors remain unverified.
 This uses owned block copies rather than an unsupported slice-to-array conversion.
 The geometry identity assertion adds one check
 to importing roots; these are overlapping obligations, not coverage totals.
@@ -110,9 +112,12 @@ calls into the address-block transition model. The same-source `next_addresses`
 helpers are wired into the walker. Initialization at index 0/2, per-index
 regeneration/word selection, canonical destination-independent address blocks,
 and the successor counter relation are proved. The scheduling helper discharges
-counter overflow internally from its u32-index invariant. Establishing that
-invariant throughout the encompassing segment loop and outer traversal remains
-unproved.
+counter overflow internally from its u32-index invariant. The segment root
+reports **170 verified, 0 errors** and establishes that invariant throughout
+the real loop, exact predecessor/reference selection, callback preconditions
+and exact final arena equality with `segment_prefix`. Its scalar adapter proves
+the callback contract using the real arena/G implementation. Outer traversal
+and full caller discharge remain unproved; SIMD callbacks are not verified.
 The shared step-progress lemma adds one obligation to every root, not new G
 or whole-hash coverage.
 Counts are verifier obligations, not function or coverage counts.

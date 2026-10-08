@@ -38,6 +38,15 @@ pub open spec fn write_block_prefix(
             replacement[index - block * 128]
         } else { words[index] })
 }
+
+#[verifier::opaque]
+pub open spec fn fill_result(
+    words: Seq<u64>, previous: int, reference: int, current: int, with_xor: bool,
+) -> Seq<u64> {
+    write_block(words, current, crate::specs::fill_block_result(
+        block_words(words, previous), block_words(words, reference),
+        block_words(words, current), with_xor))
+}
 }
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
@@ -91,15 +100,29 @@ fn write_owned_block(words: &mut Vec<u64>, block: usize, replacement: &[u64; 128
 #[cfg_attr(verus_keep_ghost, cfg_eval)]
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 impl Memory {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result as int == self.words().len(),
+    ))]
+    pub(crate) fn word_count(&self) -> usize {
+        self.0.len()
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires (block as int + 1) * 128 <= self.words().len(),
+        ensures result == self.words()[block as int * 128],
+    ))]
+    pub(crate) fn first_word(&self, block: usize) -> u64 {
+        let _word_count = self.0.len();
+        self.0[block * 128]
+    }
+
     #[cfg_attr(verus_keep_ghost, verus_spec(
         requires (previous as int + 1) * 128 <= old(self).words().len(),
             (reference as int + 1) * 128 <= old(self).words().len(),
             (current as int + 1) * 128 <= old(self).words().len(),
-        ensures final(self).words() == write_block(old(self).words(), current as int,
-            crate::specs::fill_block_result(
-                block_words(old(self).words(), previous as int),
-                block_words(old(self).words(), reference as int),
-                block_words(old(self).words(), current as int), with_xor)),
+        ensures final(self).words() == fill_result(old(self).words(), previous as int,
+            reference as int, current as int, with_xor),
+            final(self).words().len() == old(self).words().len(),
     ))]
     pub(crate) fn fill_current(
         &mut self,
@@ -113,6 +136,8 @@ impl Memory {
         let mut next = read_owned_block(&self.0, current);
         crate::block_g_fill::fill_block(&prev, &reference, &mut next, with_xor);
         write_owned_block(&mut self.0, current, &next);
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(fill_result); }
     }
 }
 

@@ -67,3 +67,7 @@
 	the owned block copies has not been benchmarked.
 - Strengthened the production segment selectors to prove exact predecessor and
 	reference-position model agreement in addition to bounds and exclusion.
+- Proved the real shared segment walker and scalar adapter against an exact
+	segment-prefix arena model, including callback contracts, both addressing
+	modes, counter schedule and bounds. Outer traversal/tag composition remains
+	open; scalar composition step 4.2 is complete.

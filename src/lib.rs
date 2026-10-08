@@ -28,6 +28,7 @@ mod block_primitives;
 mod core_address;
 mod core_impl;
 mod core_primitives;
+mod core_segment;
 mod initial_hash;
 mod memory;
 mod memory_initialization;
