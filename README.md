@@ -4,10 +4,24 @@ A dependency-free Rust implementation of the algorithms and byte-level behavior
 of the [reference Argon2 implementation](https://github.com/P-H-C/phc-winner-argon2),
 the password hash that won the Password Hashing Competition (PHC).
 
-The crate combines runtime-dispatched SIMD with same-source
+
+**The scalar implementation has a machine-checked functional-correctness
+theorem.** [Verus](https://github.com/verus-lang/verus) checks the production 
+Rust code against separately written mathematical specifications. 
+For API-accepted inputs and parameters, if the forced-scalar caller returns `Ok(())`, 
+its output equals the tag computed by the whole-hash model derived from the Argon2 
+specification. The caller proof  passes 200 verification obligations; 
+all 19 same-source proof roots pass at `--no-cheating --rlimit 30`.
+
+This proves that the checked scalar caller agrees with that mathematical model.
+Thus, the crate combines runtime-dispatched SIMD with same-source
 [Verus](https://github.com/verus-lang/verus) verification of scalar Argon2,
-from H0 through the successful returned tag. BLAKE2b and the Argon2 core are
+from H0 through the successful returned result (aka tag). BLAKE2b and the Argon2 core are
 implemented locally; the SIMD paths are not covered by that theorem.
+
+It does not by itself prove that the model perfectly captures the RFC; that
+still needs independent review. The theorem also excludes SIMD and automatic
+backend selection.
 
 ## Attribution And Security Reporting
 
@@ -29,8 +43,9 @@ Report suspected security defects privately as described in
   form one inspectable codebase, with no external cryptographic crate graph.
 - **SIMD without a different algorithm:** SSE2, SSSE3, and AVX2 accelerate block
   compression while preserving the reference result; other targets use scalar.
-- **Mathematical contracts on real code:** Verus checks selected executable
-  functions compiled by ordinary Rust, not a manually maintained runtime copy.
+- **Mathematical contracts on real code:** [Verus](https://github.com/verus-lang/verus) 
+checks selected executable functions compiled by ordinary Rust, 
+not a manually maintained runtime copy.
 - **Explicit boundaries:** the project documents what is proved, tested, or
   outside its guarantees, rather than claiming complete cryptographic proof.
 
@@ -107,10 +122,10 @@ The crate uses `std`; its feature names do not imply `no_std` support.
   exclusively borrowed elements. Differential tests are evidence, not a proof
   of these kernels or the wipe helper.
 
-## Proof Plan And Status
+## Mathematical proofs
 
-The work follows the original staged plan. Stages 1 and 2 built reusable
-primitive proofs; Stage 4 composes them in the order required by the hash.
+The work follows the staged plan. Stages 1 and 2 built reusable primitive proofs; 
+Stage 4 composes them in the order required by the hash.
 
 | Original stage | Status | Result / remaining boundary |
 | --- | --- | --- |
@@ -137,14 +152,11 @@ also trust boundaries. Edge security approval, supported-platform CI, extended
 fuzzing, sandboxed/cross-architecture performance and rollout sign-off remain
 separate release gates.
 
-## Same-Source Verification
-
-The same-source layout keeps executable leaves in ordinary Rust source.
-Cargo compiles the integrated leaves; Verus imports the exact same files
-and discharges their contracts. `cfg_attr(verus_keep_ghost, verus_spec(...))`
-attaches ghost-only contracts, while ghost imports and proof blocks are absent
-from normal Cargo builds. There is no generated executable copy or exporter
-required for the production path.
+We write Verus ghost contracts as attributes on the Rust functions they
+describe. Verus checks each contract against that function's production body;
+Cargo builds the same function with the ghost contract erased. Keeping the
+contract beside the code it describes avoids a separate implementation that
+could drift.
 
 | Source | Checked contract scope |
 | --- | --- |
