@@ -8,6 +8,20 @@ The crate combines runtime-dispatched SIMD with same-source
 [Verus](https://github.com/verus-lang/verus) verification of selected scalar and
 indexing functions. BLAKE2b and the Argon2 core are implemented locally.
 
+## Attribution And Security Reporting
+
+This crate implements the Argon2 algorithms specified in [RFC 9106](https://www.rfc-editor.org/rfc/rfc9106.html)
+and BLAKE2b as specified in [RFC 7693](https://www.rfc-editor.org/rfc/rfc7693.html).
+It is a Rust port of the [P-H-C/phc-winner-argon2](https://github.com/P-H-C/phc-winner-argon2)
+reference implementation. The reference-derived portions use that source
+package's CC0 1.0 option. The original authors, source link, and license-choice
+notice are recorded in [NOTICE](NOTICE). This crate is separately distributed
+under the MIT License; see [LICENSE-MIT](LICENSE-MIT). It is not affiliated
+with or endorsed by the reference project's authors.
+
+Report suspected security defects privately as described in
+[SECURITY.md](SECURITY.md), not in a public issue.
+
 ## Why This Crate
 
 - **No production dependencies:** the hashing core, BLAKE2b, and CPU dispatch
@@ -56,16 +70,14 @@ and tag. The API returns raw tag bytes; it does not provide PHC string encoding,
 salt generation, or a password/tag comparison API. Use a constant-time
 comparison implementation when verifying stored tags.
 
-Until the registry release exists, use a local path dependency with the same
-package name. The example uses RFC 9106's second recommended Argon2id profile:
+The example uses RFC 9106's second recommended Argon2id profile:
 64 MiB, three passes, four lanes, and a 32-byte tag. Lanes are processed
 sequentially in this implementation; `parallelism` does not spawn worker threads.
 Tune costs for your deployment and threat model. `Argon2::default()` uses
 Argon2id `0x13` with 19 MiB, two passes, and four lanes; these are also not an
 RFC 9106 recommended profile. Memory is measured in KiB and rounded down to a
 multiple of `4 * parallelism` blocks. Requires Rust 1.88 or newer.
-The crate uses `std`; its feature names
-do not imply `no_std` support.
+The crate uses `std`; its feature names do not imply `no_std` support.
 
 ## Security Boundaries
 
@@ -123,49 +135,71 @@ required for the production path.
 | [src/core_scalar_caller.rs](src/core_scalar_caller.rs) | The real checked H0, successful arena initialization, scalar traversal, final reduction, serialization, H-prime and output copy compose: `Ok(())` implies exact tag equality for accepted inputs. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
-Proof roots include [verus/shared.rs](verus/shared.rs),
-[verus/block_verified.rs](verus/block_verified.rs),
-[verus/block_g_rows_verified.rs](verus/block_g_rows_verified.rs),
-[verus/block_g_column_verified.rs](verus/block_g_column_verified.rs),
-[verus/block_g_columns_verified.rs](verus/block_g_columns_verified.rs),
-[verus/block_g_fill_verified.rs](verus/block_g_fill_verified.rs),
-[verus/blake2b_compress_verified.rs](verus/blake2b_compress_verified.rs), and
-[verus/blake2b_tables_verified.rs](verus/blake2b_tables_verified.rs). The latest
-`--no-cheating --rlimit 30` gate reports, respectively: **62**, **8**, **11**, **11**, **13**,
-**21**, **18**, and **8 verified obligations**, all with zero errors.
-The BLAKE2b buffer root additionally reports **23 verified, 0 errors** for
-append, full-buffer flush/update step, padding, final-block serialization,
+From the crate root, set `VERUS` to the verifier executable:
+
+```sh
+VERUS=/path/to/verus
+"$VERUS" verus/shared.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/block_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/block_g_rows_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/block_g_column_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/block_g_columns_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/block_g_fill_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/blake2b_compress_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/blake2b_tables_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/blake2b_buffer_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/blake2b_update_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/blake2b_api_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/initial_hash_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/parameters_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/memory_initialization_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/memory_owner_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/core_address_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/core_segment_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/core_final_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/core_scalar_caller_verified.rs --crate-type lib --no-cheating --rlimit 30
+```
+
+Proof roots include:
+- with **62 verified obligations, zero errors** for the combined primitive/indexing
+root [verus/shared.rs](verus/shared.rs), including helpers for 11 executable leaves,
+- **8/0** for the scalar-only root [verus/block_verified.rs](verus/block_verified.rs),
+- **11/0** for the row helper [verus/block_g_rows_verified.rs](verus/block_g_rows_verified.rs),
+- **11/0** for one column [verus/block_g_column_verified.rs](verus/block_g_column_verified.rs),
+- **13/0** for the outer column loop [verus/block_g_columns_verified.rs](verus/block_g_columns_verified.rs),
+- **21/0** for full scalar G [verus/block_g_fill_verified.rs](verus/block_g_fill_verified.rs),
+- One BLAKE2b block-to-state transition reports **18/0** [verus/blake2b_compress_verified.rs](verus/blake2b_compress_verified.rs), and
+- tables/unkeyed initialization **8/0** [verus/blake2b_tables_verified.rs](verus/blake2b_tables_verified.rs).
+- The BLAKE2b buffer root [verus/blake2b_buffer_verified.rs](verus/blake2b_buffer_verified.rs) additionally reports **23 verified, 0 errors** for append, full-buffer flush/update step, padding, final-block serialization,
 and positive step progress/byte-count conservation. The shared progress lemma
 adds one obligation to every root; this does not expand their hash-level scope.
-The new same-source [verus/blake2b_update_verified.rs](verus/blake2b_update_verified.rs)
-root reports **41 verified, 0 errors** for the production repeated update loop,
+- [verus/blake2b_update_verified.rs](verus/blake2b_update_verified.rs) root reports 
+**41 verified, 0 errors** for the production repeated update loop,
 block-stream digest semantics and binary partition-composition lemmas.
 The initialization helper adds two obligations to roots importing the tables.
-The parts-prefix model adds two checks to streaming roots. The new
-[verus/blake2b_api_verified.rs](verus/blake2b_api_verified.rs) root reports
-**55 verified, 0 errors** for the real public methods, multipart/prefixed wrappers,
-H-prime and its model lemmas.
-The new [verus/initial_hash_verified.rs](verus/initial_hash_verified.rs) root reports
+The parts-prefix model adds two checks to streaming roots.
+- [verus/blake2b_api_verified.rs](verus/blake2b_api_verified.rs) root reports
+**55 verified, 0 errors** for the public methods, multipart/prefixed wrappers, H-prime and its model lemmas.
+- [verus/initial_hash_verified.rs](verus/initial_hash_verified.rs) root reports
 **120 verified, 0 errors** for H0 and its checked parameter adapter/boundary.
 [verus/parameters_verified.rs](verus/parameters_verified.rs) reports **63 verified, 0 errors**
 for parameter validation plus imported core/geometry lemmas.
-The new [verus/memory_initialization_verified.rs](verus/memory_initialization_verified.rs)
+- [verus/memory_initialization_verified.rs](verus/memory_initialization_verified.rs)
 root reports **69 verified, 0 errors** for lane-block generation and flat initialization.
-[verus/memory_owner_verified.rs](verus/memory_owner_verified.rs) reports
+- [verus/memory_owner_verified.rs](verus/memory_owner_verified.rs) reports
 **156 verified, 0 errors** with the local Verus/vstd review build, for the
 geometry/allocation/initialization composition helper, the successful-result
 shape of `Memory::zeroed`, the real owning initializer, and imported helpers.
-The strict application gate passes; its trusted vstd base now
-includes the unmerged `try_reserve_exact` content-preservation specification.
+
 There are 11 executable leaf functions; the check count includes proof helpers.
-Counts are verifier
-checks, not coverage percentages. Mathematical definitions live in
+Counts are verifier checks, not coverage percentages. Mathematical definitions live in
 [specs/mod.rs](specs/mod.rs).
 
 This includes an end-to-end functional theorem for the forced-scalar caller,
 but not for automatic backend selection or SIMD. Scalar leaves are compiled
 into the Cargo library, as are the parameter, geometry, predecessor,
 addressing-mode, and reference-index leaves.
+
 Compiling or calling a verified leaf does not establish
 that every caller satisfies its preconditions. BLAKE2b proof slices cover one
 block transition, buffer/update-step/finalize helpers, and the repeated update
@@ -189,6 +223,7 @@ The real scalar segment loop now proves exact arena equality with its
 It covers both addressing modes, counter scheduling and the scalar callback.
 The same root also proves lane/slice/pass traversal against `traversal_prefix`
 and reports **180 verified, 0 errors**.
+
 The final reduction/serialization/H-prime root reports **166 verified, 0 errors**:
 it proves the lane-tail XOR, little-endian 128-word encoding and resulting
 `scalar_tag` against the H-prime model.
@@ -197,6 +232,7 @@ The whole scalar caller root reports **200 verified, 0 errors** and proves
 whole-hash model for the same Argon2d/i/id inputs and parameters. The production
 `Backend::Scalar` branch delegates to this helper. This does not guarantee `Ok`;
 allocation failure may return `Err`.
+
 The scalar callback uses proved gather/G/scatter:
 it updates exactly one block and preserves all other words. Owned block copies
 avoid unsupported borrowed slice-to-array conversion; their performance impact
@@ -268,21 +304,6 @@ Measure optimized builds with representative parameters on the actual target
 hardware. SIMD capability, memory cost, allocator behavior, and CPU load affect
 results; this README does not promise a universal speedup. The crate uses a
 normal initialized allocation, without platform-specific huge-page requests.
-
-## Attribution And Security Reporting
-
-This crate implements the Argon2 algorithms specified in [RFC 9106](https://www.rfc-editor.org/rfc/rfc9106.html)
-and BLAKE2b as specified in [RFC 7693](https://www.rfc-editor.org/rfc/rfc7693.html).
-It is a Rust port of the [P-H-C/phc-winner-argon2](https://github.com/P-H-C/phc-winner-argon2)
-reference implementation. The reference-derived portions use that source
-package's CC0 1.0 option. The original authors, source link, and license-choice
-notice are recorded in [NOTICE](NOTICE). This crate is separately distributed
-under the MIT License; see [LICENSE-MIT](LICENSE-MIT). It is not affiliated
-with or endorsed by the reference project's authors.
-
-Report suspected security defects privately as described in
-[SECURITY.md](SECURITY.md), not in a public issue.
-
 ## License
 
 This crate is licensed under the MIT License. The complete license text is in
