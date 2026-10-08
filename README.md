@@ -147,8 +147,8 @@ needed by the next one.
 Counts are verifier obligations, not coverage percentages; roots overlap and
 import shared helpers. The theorem proves functional agreement with the encoded
 model, not independent RFC fidelity, cryptographic security, constant time or
-zeroization. The local allocation specification and verification toolchain are
-also trust boundaries. Edge security approval, supported-platform CI, extended
+zeroization. The vstd contracts and Rust/Verus toolchain are part of the trusted
+base. Edge security approval, supported-platform CI, extended
 fuzzing, sandboxed/cross-architecture performance and rollout sign-off remain
 separate release gates.
 
@@ -170,7 +170,7 @@ could drift.
 | [src/initial_hash.rs](src/initial_hash.rs), [proofs/initial_hash.rs](proofs/initial_hash.rs) | Exact H0 serialization, real enum/Params adapter and checked accepted-input-to-H0 composition. |
 | [src/parameters.rs](src/parameters.rs) | Canonical public input types and validation acceptance predicate, with guarded arithmetic checked and public root re-exports preserved. |
 | [src/memory_initialization.rs](src/memory_initialization.rs), [proofs/memory_initialization.rs](proofs/memory_initialization.rs) | Exact lane seed, H-prime block, little-endian decoding, in-bounds flat writes and nested first-two-block initialization under geometry/word-slice preconditions; owning arena/allocation/full caller proof excluded. |
-| [src/memory.rs](src/memory.rs) | `Memory::zeroed_initialized` validates parameters and salt/tag lengths, checks native-size representability, then composes geometry, exact zeroed allocation shape, and first-two-block initialization without caller preconditions. It relies on a local, unmerged vstd `try_reserve_exact` specification; allocator implementation and general borrowed accessors remain unproved. |
+| [src/memory.rs](src/memory.rs) | `Memory::zeroed_initialized` validates parameters and salt/tag lengths, checks native-size representability, then composes geometry, successful zeroed allocation shape, and first-two-block initialization without caller preconditions. It uses vstd's `try_reserve_exact` contract; general borrowed accessors remain outside the proof. |
 | [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, index-alpha mapping and exact split segment-position selectors satisfy their contracts. |
 | [src/core_segment.rs](src/core_segment.rs) | The real shared walker and scalar adapter agree with the exact segment-prefix arena model; scalar lane/slice/pass traversal agrees with `traversal_prefix`. |
 | [src/core_final.rs](src/core_final.rs) | The real final lane-tail XOR, little-endian 128-word serialization, and H-prime application compose to the exact tag model under representable arena geometry. |
@@ -282,14 +282,15 @@ it updates exactly one block and preserves all other words. Owned block copies
 avoid unsupported borrowed slice-to-array conversion; their performance impact
 has not been benchmarked. General borrowed accessors remain unverified.
 The constructor's successful-result shape and initializer are checked,
-and geometry proves exact block product and lane_length>=8. The `try_reserve_exact` mapping is a trusted vstd specification in
-a separate local review worktree, not an allocator implementation proof or an
-upstream-approved release. No application-local assumption was added. The agreed
+and geometry proves exact block product and lane_length>=8. The owner proof uses
+vstd's `try_reserve_exact` contract to establish the successful vector shape;
+the allocator's runtime implementation remains part of the trusted base. No
+application-local assumption was added. The agreed
 returned-tag target is forced scalar, version 0x13,
 Argon2d/i/id with accepted/representable inputs and normal successful execution;
 automatic detection, SIMD and legacy 0x10 are excluded from this first theorem.
-The original plan's scalar composition steps 4.2 (one segment), 4.3 (outer
-traversal), 4.4 (final reduction/serialization/H-prime), and 4.5 (returned tag
+The original plan's scalar composition steps 3.2 (one segment), 3.3 (outer
+traversal), 3.4 (final reduction/serialization/H-prime), and 3.5 (returned tag
 on successful forced-scalar execution) are complete. Public wrapper selection,
 automatic backend selection and SIMD equivalence remain outside this theorem.
 Drop/wiping are unchanged; zeroization is
