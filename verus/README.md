@@ -17,13 +17,14 @@ and proof blocks. This same-source layout requires no executable export step.
 | [blake2b_buffer_verified.rs](blake2b_buffer_verified.rs) | [../src/blake2b_buffer.rs](../src/blake2b_buffer.rs), compression helpers | Buffer append, full-buffer flush/update step, final padding, and digest serialization. |
 | [blake2b_update_verified.rs](blake2b_update_verified.rs) | [../src/blake2b_update.rs](../src/blake2b_update.rs), [../proofs/blake2b_update.rs](../proofs/blake2b_update.rs), buffer helpers | Production update establishes block-prefix semantics and a modeled final digest; binary partition composition and digest independence are proved. |
 | [blake2b_api_verified.rs](blake2b_api_verified.rs) | [../src/blake2b.rs](../src/blake2b.rs), [../proofs/blake2b_long.rs](../proofs/blake2b_long.rs), streaming model/helpers | Real public methods, arbitrary multipart/prefixed wrappers, and both H-prime branches agree with their models; lengths, bounds and loop termination are checked under explicit preconditions. |
-| [initial_hash_verified.rs](initial_hash_verified.rs) | [../src/initial_hash.rs](../src/initial_hash.rs), [../src/parameters.rs](../src/parameters.rs), [../proofs/initial_hash.rs](../proofs/initial_hash.rs), BLAKE2b helpers | Raw H0 serialization, real enum/Params mapping and checked accepted-input-to-H0 composition; not arena/traversal or the full hash caller. |
+| [initial_hash_verified.rs](initial_hash_verified.rs) | [../src/initial_hash.rs](../src/initial_hash.rs), [../src/parameters.rs](../src/parameters.rs), [../proofs/initial_hash.rs](../proofs/initial_hash.rs), BLAKE2b helpers | Raw H0 serialization, real enum/Params mapping and checked accepted-input-to-H0 composition. |
 | [parameters_verified.rs](parameters_verified.rs) | [../src/parameters.rs](../src/parameters.rs), core/geometry helpers | Parameter/salt/tag validation returns Ok exactly for its accepted domain; guarded arithmetic is checked. |
 | [memory_initialization_verified.rs](memory_initialization_verified.rs) | [../src/memory_initialization.rs](../src/memory_initialization.rs), [../proofs/memory_initialization.rs](../proofs/memory_initialization.rs), H-prime helpers | Exact H0/LE32 column/lane seed, H-prime(1024) decoding, in-bounds flat placement and real nested initialization loops; allocation/Memory wrapper/caller discharge excluded. |
 | [memory_owner_verified.rs](memory_owner_verified.rs) | [../src/memory.rs](../src/memory.rs), geometry/initialization/G/BLAKE2b helpers | `Memory::zeroed_initialized` validates parameters, salt/tag lengths and native-size representability internally, then composes geometry, successful exact-length zeroed allocation and first-block initialization with no caller preconditions. Depends on the local trusted vstd `try_reserve_exact` spec; allocator implementation, general accessors and full hash body remain outside the proof. |
 | [core_address_verified.rs](core_address_verified.rs) | [../src/core_address.rs](../src/core_address.rs), [../src/block_g_fill.rs](../src/block_g_fill.rs) | The real counter increment and two scalar G calls compose to the generated address-block model, under a non-overflow precondition; per-segment scheduling and traversal remain outside. |
-| [core_segment_verified.rs](core_segment_verified.rs) | [../src/core_segment.rs](../src/core_segment.rs), address/indexing/arena helpers | The real shared walker and checked scalar callback yield exact `segment_prefix` arena contents, with both addressing modes, schedule invariants and bounds; outer traversal/caller discharge remains outside. |
-| [core_final_verified.rs](core_final_verified.rs) | [../src/core_final.rs](../src/core_final.rs), [../src/memory.rs](../src/memory.rs), H-prime API | Final lane-tail XOR, little-endian serialization and H-prime application compose to the exact `scalar_tag` model under representable arena/output bounds; the `hash_into` caller remains outside. |
+| [core_segment_verified.rs](core_segment_verified.rs) | [../src/core_segment.rs](../src/core_segment.rs), address/indexing/arena helpers | The real shared walker and scalar callback yield exact segment/traversal-prefix arena contents, with both addressing modes and all loop invariants. |
+| [core_final_verified.rs](core_final_verified.rs) | [../src/core_final.rs](../src/core_final.rs), [../src/memory.rs](../src/memory.rs), H-prime API | Final lane-tail XOR, little-endian serialization and H-prime application compose to the exact `scalar_tag` model under representable arena/output bounds. |
+| [core_scalar_caller_verified.rs](core_scalar_caller_verified.rs) | [../src/core_scalar_caller.rs](../src/core_scalar_caller.rs) and all scalar proof helpers | For accepted inputs, the real checked H0/arena/traversal/finalization/output-copy caller proves `Ok(()) ==> out == scalar_tag_model`; successful allocation and allocator correctness are separate. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -60,6 +61,7 @@ VERUS=/path/to/verus
 "$VERUS" verus/core_address_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/core_segment_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/core_final_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/core_scalar_caller_verified.rs --crate-type lib --no-cheating --rlimit 30
 ```
 
 The matching source revision is
@@ -89,8 +91,8 @@ The real owner/constructor root reports **156 verified, 0 errors** including
 imported G/core/BLAKE2b helpers, with the local vstd mapping. It proves the
 parameter-checking geometry/allocation/initialization adapter and the constructor's
 exact length and zero contents on `Ok`, not allocation success or allocator
-correctness. The core calls the adapter, but the full hash body and traversal
-are not verified.
+correctness. The real scalar caller root composes the adapter with the proved
+traversal and final-tag helpers; SIMD and automatic backend paths remain outside.
 The real scalar callback now uses verified gather/G/scatter. Its contract
 updates exactly the destination block and preserves every other arena word;
 general borrowed accessors remain unverified.
@@ -124,9 +126,15 @@ contents. Full caller discharge and tag finalization remain unproved; SIMD
 callbacks are not verified.
 The finalization root reports **166 verified, 0 errors** for the actual
 wordwise XOR of every lane's last block, exact little-endian byte output, and
-composition with the already-proved H-prime API into `scalar_tag`. Discharging
-the final memory/output preconditions in `hash_into` and proving its `Ok`
-returned-tag result remains open.
+composition with the already-proved H-prime API into `scalar_tag`.
+The whole scalar caller root reports **200 verified, 0 errors**: for accepted
+inputs, `hash_into_scalar` proves `Ok(()) ==> out == scalar_tag_model`, with
+`checked_h0`, successful arena construction, traversal, finalization and copy
+preconditions discharged internally. The production `Backend::Scalar` branch
+delegates to this helper. This is not a guarantee that the operation returns
+`Ok`: allocation/execution may fail. The trusted local vstd allocation
+specification and independent RFC/model fidelity review remain explicit
+assumptions; SIMD and automatic backend selection are outside the theorem.
 The shared step-progress lemma adds one obligation to every root, not new G
 or whole-hash coverage.
 Counts are verifier obligations, not function or coverage counts.

@@ -112,13 +112,15 @@ required for the production path.
 | [src/blake2b_compress.rs](src/blake2b_compress.rs), [src/blake2b_tables.rs](src/blake2b_tables.rs), and [src/blake2b_buffer.rs](src/blake2b_buffer.rs) | One block-to-state transition, RFC tables/unkeyed initialization, buffer append/flush, update step, and final-block transition. |
 | [src/blake2b_update.rs](src/blake2b_update.rs), [proofs/blake2b_update.rs](proofs/blake2b_update.rs) | The production loop establishes block-prefix semantics and a modeled final digest; binary partition composition proves digest independence for any two-part split under the semantic contracts. |
 | [src/blake2b.rs](src/blake2b.rs), [proofs/blake2b_long.rs](proofs/blake2b_long.rs) | Real public methods, multipart/prefixed wrappers and both H-prime branches match their encoded models under output/capacity/byte-count preconditions. H-prime output length, bounds and termination are checked; closed ghost views preserve private fields. |
-| [src/initial_hash.rs](src/initial_hash.rs), [proofs/initial_hash.rs](proofs/initial_hash.rs) | Exact H0 serialization, real enum/Params adapter and checked accepted-input-to-H0 composition; not the full hash caller/traversal theorem. |
+| [src/initial_hash.rs](src/initial_hash.rs), [proofs/initial_hash.rs](proofs/initial_hash.rs) | Exact H0 serialization, real enum/Params adapter and checked accepted-input-to-H0 composition. |
 | [src/parameters.rs](src/parameters.rs) | Canonical public input types and validation acceptance predicate, with guarded arithmetic checked and public root re-exports preserved. |
 | [src/memory_initialization.rs](src/memory_initialization.rs), [proofs/memory_initialization.rs](proofs/memory_initialization.rs) | Exact lane seed, H-prime block, little-endian decoding, in-bounds flat writes and nested first-two-block initialization under geometry/word-slice preconditions; owning arena/allocation/full caller proof excluded. |
-| [src/memory.rs](src/memory.rs) | `Memory::zeroed_initialized` validates parameters and salt/tag lengths, checks native-size representability, then composes geometry, exact zeroed allocation shape, and first-two-block initialization without caller preconditions. It relies on a local, unmerged vstd `try_reserve_exact` specification; allocator implementation, general accessors, and the full hash caller remain unproved. |
+| [src/memory.rs](src/memory.rs) | `Memory::zeroed_initialized` validates parameters and salt/tag lengths, checks native-size representability, then composes geometry, exact zeroed allocation shape, and first-two-block initialization without caller preconditions. It relies on a local, unmerged vstd `try_reserve_exact` specification; allocator implementation and general borrowed accessors remain unproved. |
 | [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, index-alpha mapping and exact split segment-position selectors satisfy their contracts. |
-| [src/core_segment.rs](src/core_segment.rs) | The real shared walker and scalar adapter agree with the exact segment-prefix arena model under valid geometry and exact arena size; scalar lane/slice/pass traversal agrees with `traversal_prefix`. |
-| [src/core_final.rs](src/core_final.rs) | The real final lane-tail XOR, little-endian 128-word serialization, and H-prime application compose to the exact tag model under representable arena geometry. The hash caller still must discharge these preconditions. |
+| [src/core_segment.rs](src/core_segment.rs) | The real shared walker and scalar adapter agree with the exact segment-prefix arena model; scalar lane/slice/pass traversal agrees with `traversal_prefix`. |
+| [src/core_final.rs](src/core_final.rs) | The real final lane-tail XOR, little-endian 128-word serialization, and H-prime application compose to the exact tag model under representable arena geometry. |
+| [src/core_scalar_caller.rs](src/core_scalar_caller.rs) | The real checked H0, successful arena initialization, scalar traversal, finalization and output copy compose: `Ok(())` implies exact tag equality for accepted inputs. |
+| [src/core_scalar_caller.rs](src/core_scalar_caller.rs) | The real checked H0, successful arena initialization, scalar traversal, final reduction, serialization, H-prime and output copy compose: `Ok(())` implies exact tag equality for accepted inputs. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
 Proof roots include [verus/shared.rs](verus/shared.rs),
@@ -160,9 +162,10 @@ Counts are verifier
 checks, not coverage percentages. Mathematical definitions live in
 [specs/mod.rs](specs/mod.rs).
 
-This is not an end-to-end Argon2 proof. Scalar leaves are compiled into the
-Cargo library, as are the parameter, geometry, predecessor, addressing-mode,
-and reference-index leaves.
+This includes an end-to-end functional theorem for the forced-scalar caller,
+but not for automatic backend selection or SIMD. Scalar leaves are compiled
+into the Cargo library, as are the parameter, geometry, predecessor,
+addressing-mode, and reference-index leaves.
 Compiling or calling a verified leaf does not establish
 that every caller satisfies its preconditions. BLAKE2b proof slices cover one
 block transition, buffer/update-step/finalize helpers, and the repeated update
@@ -185,12 +188,15 @@ The real scalar segment loop now proves exact arena equality with its
 `segment_prefix` model, under valid segment geometry and exact arena size.
 It covers both addressing modes, counter scheduling and the scalar callback.
 The same root also proves lane/slice/pass traversal against `traversal_prefix`
-and reports **180 verified, 0 errors**. The full hash caller remains unverified.
+and reports **180 verified, 0 errors**.
 The final reduction/serialization/H-prime root reports **166 verified, 0 errors**:
 it proves the lane-tail XOR, little-endian 128-word encoding and resulting
-`scalar_tag` against the H-prime model. The whole `hash_into` caller still does
-not discharge the arena/output preconditions or establish that its `Ok` return
-contains this tag.
+`scalar_tag` against the H-prime model.
+The whole scalar caller root reports **200 verified, 0 errors** and proves
+`hash_into_scalar`: for accepted inputs, `Ok(())` implies that `out` equals the
+whole-hash model for the same Argon2d/i/id inputs and parameters. The production
+`Backend::Scalar` branch delegates to this helper. This does not guarantee `Ok`;
+allocation failure may return `Err`.
 The scalar callback uses proved gather/G/scatter:
 it updates exactly one block and preserves all other words. Owned block copies
 avoid unsupported borrowed slice-to-array conversion; their performance impact
@@ -202,10 +208,11 @@ upstream-approved release. No application-local assumption was added. The agreed
 returned-tag target is forced scalar, version 0x13,
 Argon2d/i/id with accepted/representable inputs and normal successful execution;
 automatic detection, SIMD and legacy 0x10 are excluded from this first theorem.
-The original plan's scalar composition steps 4.2 (one segment) and 4.3 (outer
-traversal) are complete under their geometry/arena preconditions; steps 4.4
-(hash caller discharge) and 4.5 (returned-tag/API) remain open. Caller discharge and the
-returned-tag theorem are not proved. Drop/wiping are unchanged; zeroization is
+The original plan's scalar composition steps 4.2 (one segment), 4.3 (outer
+traversal), 4.4 (final reduction/serialization/H-prime), and 4.5 (returned tag
+on successful forced-scalar execution) are complete. Public wrapper selection,
+automatic backend selection and SIMD equivalence remain outside this theorem.
+Drop/wiping are unchanged; zeroization is
 not part of these functional proofs. The full hash loop,
 caller invariants, SIMD equivalence and memory safety, permutation bijectivity,
 cryptographic security, timing, and zeroization are not established

@@ -106,6 +106,7 @@ pub(crate) fn compute_from_params(
     ensures result.is_ok() == (
         crate::specs::valid_params(params.parallelism, params.memory_kib, params.iterations)
         && 8 <= salt.len() <= u32::MAX as usize && 4 <= tag_len <= u32::MAX as usize
+        && tag_len <= isize::MAX as usize
         && password.len() <= u32::MAX as usize && secret.len() <= u32::MAX as usize
         && ad.len() <= u32::MAX as usize),
         result matches Ok(digest) ==> digest@ == model::h0(

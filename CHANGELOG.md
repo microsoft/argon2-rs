@@ -78,3 +78,8 @@
 	128-word block, composed it with the proved H-prime API into `scalar_tag`,
 	and routed scalar finalization through this helper. Caller discharge remains
 	open; scalar composition step 4.4 is complete.
+- Proved the accepted-input scalar caller through output copy: successful return
+	implies exact whole-hash model tag equality. The production forced-Scalar
+	branch delegates to this helper; allocator implementation and RFC/model
+	fidelity remain separate trust boundaries. Scalar composition step 4.5 is
+	complete for the forced-scalar caller.

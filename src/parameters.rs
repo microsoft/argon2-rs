@@ -52,7 +52,9 @@ impl Params {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures result.is_ok() == (
             specs::valid_params(self.parallelism, self.memory_kib, self.iterations)
-            && 8 <= salt_len <= u32::MAX as usize && 4 <= tag_len <= u32::MAX as usize),
+            && 8 <= salt_len <= u32::MAX as usize
+            && 4 <= tag_len <= u32::MAX as usize
+            && tag_len <= isize::MAX as usize),
     ))]
     pub(crate) fn validate(&self, salt_len: usize, tag_len: usize) -> Result<(), Error> {
         if !core_primitives::valid_params(self.parallelism, self.memory_kib, self.iterations) {
@@ -69,6 +71,9 @@ impl Params {
             return Err(Error::InvalidIterations);
         }
         if salt_len > u32::MAX as usize || tag_len > u32::MAX as usize {
+            return Err(Error::InputTooLong);
+        }
+        if tag_len > isize::MAX as usize {
             return Err(Error::InputTooLong);
         }
         if salt_len < 8 {

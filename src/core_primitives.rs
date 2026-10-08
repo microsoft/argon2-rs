@@ -21,6 +21,8 @@ pub fn valid_params(lanes: u32, memory: u32, passes: u32) -> bool {
     ensures result.0 == specs::memory_blocks(memory, lanes),
         result.1 == result.0 / lanes,
         result.2 == result.1 / 4,
+        result.1 == 4 * result.2,
+        result.1 == 4 * result.2,
         result.2 >= 2,
         result.0 as int == lanes as int * result.1 as int,
         result.1 >= 8,

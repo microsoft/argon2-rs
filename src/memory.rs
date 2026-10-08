@@ -176,6 +176,10 @@ impl Memory {
             blocks as int == crate::specs::memory_blocks(params.memory_kib, params.parallelism)
             && lane_length as int == blocks as int / params.parallelism as int
             && segment_length as int == lane_length as int / 4
+            && blocks as int == params.parallelism as int * lane_length as int
+            && lane_length as int == 4 * segment_length as int
+            && params.parallelism as int * lane_length as int <= u32::MAX as int
+            && memory.words().len() == blocks as int * 128
             && memory.words() == model::initialized_prefix(
                 Seq::new(blocks as nat * 128, |_index: int| 0u64),
                 h0@, lane_length as nat, 2 * params.parallelism as nat,
@@ -195,6 +199,12 @@ impl Memory {
         let lanes = params.parallelism;
         let (blocks, lane_length, segment_length) =
             crate::core_primitives::memory_geometry(params.memory_kib, lanes);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(blocks as int == lanes as int * lane_length as int);
+            assert(lane_length as int == 4 * segment_length as int);
+            assert(lanes as int * lane_length as int <= u32::MAX as int);
+        }
         let mut memory = Memory::zeroed(blocks as usize)?;
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -209,6 +219,8 @@ impl Memory {
             }
         }
         memory.initialize(h0, lanes, lane_length);
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(memory.words().len() == blocks as int * 128); }
         Ok((memory, blocks, lane_length, segment_length))
     }
 }
@@ -221,7 +233,8 @@ impl Memory {
         requires lanes > 0, lane_length >= 2,
             lanes as int * lane_length as int <= u32::MAX as int,
             lanes as int * lane_length as int * 128 == old(self).words().len(),
-        ensures final(self).words() == model::initialized_prefix(
+        ensures final(self).words().len() == old(self).words().len(),
+            final(self).words() == model::initialized_prefix(
             old(self).words(), h0@, lane_length as nat, 2 * lanes as nat),
     ))]
     pub(crate) fn initialize(&mut self, h0: &[u8; 64], lanes: u32, lane_length: u32) {

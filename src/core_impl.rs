@@ -3,28 +3,11 @@
 
 use crate::blake2b::blake2b_long;
 use crate::block::Block;
+pub use crate::core_backend::Backend;
 use crate::memory::Memory;
 use crate::{Algorithm, Error, Params, Version};
 
 const SYNC_POINTS: u32 = 4;
-
-/// Which implementation of the block-compression step `fill_segment` uses.
-/// Every backend produces bit-identical output; only speed differs. The
-/// indexing logic (reference-block selection) is shared in `walk_segment`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Backend {
-    /// Portable Rust; the code path the Verus proof models.
-    Scalar,
-    /// x86 SSE2 (baseline on every x86-64 CPU).
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    Sse2,
-    /// x86 SSSE3, for CPUs that have it but lack AVX2.
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    Ssse3,
-    /// x86 AVX2, selected at runtime when the CPU supports it.
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    Avx2,
-}
 
 impl Backend {
     /// The fastest backend this CPU can execute.
@@ -99,6 +82,11 @@ pub(crate) fn hash_into_with_backend(
     ad: &[u8],
     out: &mut [u8],
 ) -> Result<(), Error> {
+    if backend == Backend::Scalar {
+        return crate::core_scalar_caller::scalar_backend(
+            backend, algorithm, version, params, password, salt, secret, ad, out,
+        );
+    }
     let h0 = crate::initial_hash::checked_h0(
         algorithm,
         version,
@@ -115,23 +103,7 @@ pub(crate) fn hash_into_with_backend(
     let (mut memory, memory_blocks, lane_length, segment_length) =
         Memory::zeroed_initialized(&h0, params, salt.len(), out.len())?;
 
-    if backend == Backend::Scalar {
-        crate::core_segment::fill_memory(
-            &mut memory,
-            &Segment {
-                algorithm,
-                version,
-                lanes,
-                lane_length,
-                segment_length,
-                memory_blocks,
-                total_passes: params.iterations,
-                pass: 0,
-                lane: 0,
-                slice: 0,
-            },
-        );
-    } else {
+    {
         for pass in 0..params.iterations {
             for slice in 0..SYNC_POINTS {
                 for lane in 0..lanes {

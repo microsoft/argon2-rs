@@ -107,7 +107,8 @@ pub(crate) fn write_block(memory: &mut [u64], slot: usize, output: &[u64; 128]) 
     requires lanes > 0, lane_length >= 2,
         lanes as int * lane_length as int <= u32::MAX as int,
         lanes as int * lane_length as int * 128 == old(memory)@.len(),
-    ensures final(memory)@ == model::initialized_prefix(
+    ensures final(memory)@.len() == old(memory)@.len(),
+        final(memory)@ == model::initialized_prefix(
         old(memory)@, h0@, lane_length as nat, 2 * lanes as nat),
 ))]
 pub(crate) fn initialize_words(memory: &mut [u64], h0: &[u8; 64], lanes: u32, lane_length: u32) {
@@ -155,6 +156,8 @@ pub(crate) fn initialize_words(memory: &mut [u64], h0: &[u8; 64], lanes: u32, la
             write_block(memory, (lane * lane_length + column) as usize, &output);
         }
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(memory@.len() == old(memory)@.len()); }
 }
 
 #[cfg(test)]
