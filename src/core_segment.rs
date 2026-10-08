@@ -265,3 +265,136 @@ fn scalar_fill(
 pub(crate) fn fill_segment_scalar(memory: &mut Memory, seg: &Segment) {
     walk_segment(memory, seg, scalar_fill);
 }
+
+#[cfg(verus_keep_ghost)]
+verus! {
+#[verifier::opaque]
+pub(crate) open spec fn slice_prefix(before: Seq<u64>, seg: Segment, lanes: nat) -> Seq<u64>
+    decreases lanes,
+{
+    if lanes == 0 { before }
+    else {
+        let current = Segment { lane: (lanes - 1) as u32, ..seg };
+        segment_prefix(slice_prefix(before, seg, (lanes - 1) as nat), current,
+            (seg.segment_length as int - segment_start(current)) as nat)
+    }
+}
+
+pub(crate) proof fn slice_advance(before: Seq<u64>, seg: Segment, lane: u32)
+    ensures slice_prefix(before, seg, lane as nat + 1)
+        == segment_prefix(slice_prefix(before, seg, lane as nat),
+            Segment { lane, ..seg }, (seg.segment_length as int - segment_start(seg)) as nat),
+{
+    reveal(slice_prefix);
+}
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
+#[cfg_attr(verus_keep_ghost, verus_spec(
+    requires seg.valid(), old(memory).words().len() == seg.memory_blocks as int * 128,
+    ensures final(memory).words().len() == old(memory).words().len(),
+        final(memory).words() == slice_prefix(old(memory).words(), *seg, seg.lanes as nat),
+))]
+pub(crate) fn fill_slice(memory: &mut Memory, seg: &Segment) {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost initial = memory.words(); }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(slice_prefix); }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant memory.words().len() == seg.memory_blocks as int * 128,
+            memory.words() == slice_prefix(initial, *seg, lane as nat),
+    ))]
+    for lane in 0..seg.lanes {
+        let current = Segment { lane, ..*seg };
+        fill_segment_scalar(memory, &current);
+        #[cfg(verus_keep_ghost)]
+        proof! { slice_advance(initial, *seg, lane); }
+    }
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+#[verifier::opaque]
+pub(crate) open spec fn pass_prefix(before: Seq<u64>, seg: Segment, slices: nat) -> Seq<u64>
+    decreases slices,
+{
+    if slices == 0 { before }
+    else {
+        slice_prefix(pass_prefix(before, seg, (slices - 1) as nat),
+            Segment { slice: (slices - 1) as u32, ..seg }, seg.lanes as nat)
+    }
+}
+
+pub(crate) proof fn pass_advance(before: Seq<u64>, seg: Segment, slice: u32)
+    ensures pass_prefix(before, seg, slice as nat + 1)
+        == slice_prefix(pass_prefix(before, seg, slice as nat),
+            Segment { slice, ..seg }, seg.lanes as nat),
+{
+    reveal(pass_prefix);
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn traversal_prefix(before: Seq<u64>, seg: Segment, passes: nat) -> Seq<u64>
+    decreases passes,
+{
+    if passes == 0 { before }
+    else {
+        pass_prefix(traversal_prefix(before, seg, (passes - 1) as nat),
+            Segment { pass: (passes - 1) as u32, ..seg }, 4)
+    }
+}
+
+pub(crate) proof fn traversal_advance(before: Seq<u64>, seg: Segment, pass: u32)
+    ensures traversal_prefix(before, seg, pass as nat + 1)
+        == pass_prefix(traversal_prefix(before, seg, pass as nat),
+            Segment { pass, ..seg }, 4),
+{
+    reveal(traversal_prefix);
+}
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
+#[cfg_attr(verus_keep_ghost, verus_spec(
+    requires seg.valid(), old(memory).words().len() == seg.memory_blocks as int * 128,
+    ensures final(memory).words().len() == old(memory).words().len(),
+        final(memory).words() == pass_prefix(old(memory).words(), *seg, 4),
+))]
+pub(crate) fn fill_pass(memory: &mut Memory, seg: &Segment) {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost initial = memory.words(); }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(pass_prefix); }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant memory.words().len() == seg.memory_blocks as int * 128,
+            memory.words() == pass_prefix(initial, *seg, slice as nat),
+    ))]
+    for slice in 0..4u32 {
+        let current = Segment { slice, ..*seg };
+        fill_slice(memory, &current);
+        #[cfg(verus_keep_ghost)]
+        proof! { pass_advance(initial, *seg, slice); }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
+#[cfg_attr(verus_keep_ghost, verus_spec(
+    requires seg.valid(), old(memory).words().len() == seg.memory_blocks as int * 128,
+    ensures final(memory).words().len() == old(memory).words().len(),
+        final(memory).words() == traversal_prefix(old(memory).words(), *seg, seg.total_passes as nat),
+))]
+pub(crate) fn fill_memory(memory: &mut Memory, seg: &Segment) {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost initial = memory.words(); }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(traversal_prefix); }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant memory.words().len() == seg.memory_blocks as int * 128,
+            memory.words() == traversal_prefix(initial, *seg, pass as nat),
+    ))]
+    for pass in 0..seg.total_passes {
+        let current = Segment { pass, ..*seg };
+        fill_pass(memory, &current);
+        #[cfg(verus_keep_ghost)]
+        proof! { traversal_advance(initial, *seg, pass); }
+    }
+}

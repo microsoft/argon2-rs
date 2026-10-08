@@ -182,9 +182,10 @@ input encoding, zero counter/tail, counter increment, two scalar G transitions,
 initial scheduling at index 0/2 and per-index regeneration/word selection.
 The real scalar segment loop now proves exact arena equality with its
 `segment_prefix` model, under valid segment geometry and exact arena size.
-It covers both addressing modes, counter scheduling and the scalar callback;
-the segment root reports **170 verified, 0 errors**. Outer pass/slice/lane
-traversal and the full hash caller remain unverified. The scalar callback uses proved gather/G/scatter:
+It covers both addressing modes, counter scheduling and the scalar callback.
+The same root also proves lane/slice/pass traversal against `traversal_prefix`
+and reports **179 verified, 0 errors**. The full hash caller remains unverified.
+The scalar callback uses proved gather/G/scatter:
 it updates exactly one block and preserves all other words. Owned block copies
 avoid unsupported borrowed slice-to-array conversion; their performance impact
 has not been benchmarked. General borrowed accessors remain unverified.
@@ -195,9 +196,10 @@ upstream-approved release. No application-local assumption was added. The agreed
 returned-tag target is forced scalar, version 0x13,
 Argon2d/i/id with accepted/representable inputs and normal successful execution;
 automatic detection, SIMD and legacy 0x10 are excluded from this first theorem.
-The original plan's scalar composition step 4.2 (one segment) is complete;
-steps 4.3 (outer traversal), 4.4 (finalization) and 4.5 (returned-tag/API)
-remain open. Hash traversal and the returned-tag theorem are not proved. Drop/wiping are unchanged; zeroization is
+The original plan's scalar composition steps 4.2 (one segment) and 4.3 (outer
+traversal) are complete under their geometry/arena preconditions; steps 4.4
+(finalization) and 4.5 (returned-tag/API) remain open. Caller discharge and the
+returned-tag theorem are not proved. Drop/wiping are unchanged; zeroization is
 not part of these functional proofs. The full hash loop,
 caller invariants, SIMD equivalence and memory safety, permutation bijectivity,
 cryptographic security, timing, and zeroization are not established

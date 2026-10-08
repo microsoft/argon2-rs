@@ -115,29 +115,47 @@ pub(crate) fn hash_into_with_backend(
     let (mut memory, memory_blocks, lane_length, segment_length) =
         Memory::zeroed_initialized(&h0, params, salt.len(), out.len())?;
 
-    for pass in 0..params.iterations {
-        for slice in 0..SYNC_POINTS {
-            for lane in 0..lanes {
-                let seg = Segment {
-                    algorithm,
-                    version,
-                    lanes,
-                    lane_length,
-                    segment_length,
-                    memory_blocks,
-                    total_passes: params.iterations,
-                    pass,
-                    lane,
-                    slice,
-                };
-                match backend {
-                    Backend::Scalar => fill_segment_scalar(&mut memory, &seg),
-                    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-                    Backend::Sse2 => crate::simd::fill_segment_sse2(&mut memory, &seg),
-                    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-                    Backend::Ssse3 => crate::simd::fill_segment_ssse3(&mut memory, &seg),
-                    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-                    Backend::Avx2 => crate::simd::fill_segment_avx2(&mut memory, &seg),
+    if backend == Backend::Scalar {
+        crate::core_segment::fill_memory(
+            &mut memory,
+            &Segment {
+                algorithm,
+                version,
+                lanes,
+                lane_length,
+                segment_length,
+                memory_blocks,
+                total_passes: params.iterations,
+                pass: 0,
+                lane: 0,
+                slice: 0,
+            },
+        );
+    } else {
+        for pass in 0..params.iterations {
+            for slice in 0..SYNC_POINTS {
+                for lane in 0..lanes {
+                    let seg = Segment {
+                        algorithm,
+                        version,
+                        lanes,
+                        lane_length,
+                        segment_length,
+                        memory_blocks,
+                        total_passes: params.iterations,
+                        pass,
+                        lane,
+                        slice,
+                    };
+                    match backend {
+                        Backend::Scalar => fill_segment_scalar(&mut memory, &seg),
+                        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+                        Backend::Sse2 => crate::simd::fill_segment_sse2(&mut memory, &seg),
+                        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+                        Backend::Ssse3 => crate::simd::fill_segment_ssse3(&mut memory, &seg),
+                        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+                        Backend::Avx2 => crate::simd::fill_segment_avx2(&mut memory, &seg),
+                    }
                 }
             }
         }

@@ -71,3 +71,6 @@
 	segment-prefix arena model, including callback contracts, both addressing
 	modes, counter schedule and bounds. Outer traversal/tag composition remains
 	open; scalar composition step 4.2 is complete.
+- Proved the scalar lane/slice/pass helpers against exact traversal-prefix
+	arena semantics and routed scalar execution through them. Full caller/tag
+	composition remains open; scalar composition step 4.3 is complete.

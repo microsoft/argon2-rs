@@ -113,11 +113,13 @@ helpers are wired into the walker. Initialization at index 0/2, per-index
 regeneration/word selection, canonical destination-independent address blocks,
 and the successor counter relation are proved. The scheduling helper discharges
 counter overflow internally from its u32-index invariant. The segment root
-reports **170 verified, 0 errors** and establishes that invariant throughout
+reports **179 verified, 0 errors** and establishes that invariant throughout
 the real loop, exact predecessor/reference selection, callback preconditions
 and exact final arena equality with `segment_prefix`. Its scalar adapter proves
-the callback contract using the real arena/G implementation. Outer traversal
-and full caller discharge remain unproved; SIMD callbacks are not verified.
+the callback contract using the real arena/G implementation. The real scalar
+lane/slice/pass helpers additionally prove exact `traversal_prefix` final arena
+contents. Full caller discharge and tag finalization remain unproved; SIMD
+callbacks are not verified.
 The shared step-progress lemma adds one obligation to every root, not new G
 or whole-hash coverage.
 Counts are verifier obligations, not function or coverage counts.
