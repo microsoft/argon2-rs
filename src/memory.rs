@@ -101,6 +101,14 @@ fn write_owned_block(words: &mut Vec<u64>, block: usize, replacement: &[u64; 128
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 impl Memory {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires (block as int + 1) * 128 <= self.words().len(),
+        ensures result@ == block_words(self.words(), block as int),
+    ))]
+    pub(crate) fn block_copy(&self, block: usize) -> [u64; 128] {
+        read_owned_block(&self.0, block)
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures result as int == self.words().len(),
     ))]
     pub(crate) fn word_count(&self) -> usize {

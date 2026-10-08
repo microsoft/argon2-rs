@@ -161,15 +161,16 @@ pub(crate) fn hash_into_with_backend(
         }
     }
 
-    // Final block: XOR of the last column of every lane. `final_block` is a
-    // fresh local (not a view into `memory`), so no clone of the source
-    // blocks is needed.
-    let mut final_block = Block::zero();
-    for lane in 0..lanes {
-        final_block.xor_with_slice(memory.get((lane * lane_length + lane_length - 1) as usize));
-    }
+    let tag = if backend == Backend::Scalar {
+        crate::core_final::scalar_tag(&memory, lanes, lane_length, out.len())
+    } else {
+        let mut final_block = Block::zero();
+        for lane in 0..lanes {
+            final_block.xor_with_slice(memory.get((lane * lane_length + lane_length - 1) as usize));
+        }
+        blake2b_long(out.len(), &[&final_block.to_bytes()])
+    };
 
-    let tag = blake2b_long(out.len(), &[&final_block.to_bytes()]);
     out.copy_from_slice(&tag);
     Ok(())
 }

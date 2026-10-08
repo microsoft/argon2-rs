@@ -74,3 +74,7 @@
 - Proved the scalar lane/slice/pass helpers against exact traversal-prefix
 	arena semantics and routed scalar execution through them. Full caller/tag
 	composition remains open; scalar composition step 4.3 is complete.
+- Proved final lane-tail XOR and little-endian serialization of the resulting
+	128-word block, composed it with the proved H-prime API into `scalar_tag`,
+	and routed scalar finalization through this helper. Caller discharge remains
+	open; scalar composition step 4.4 is complete.

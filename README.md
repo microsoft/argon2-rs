@@ -117,7 +117,8 @@ required for the production path.
 | [src/memory_initialization.rs](src/memory_initialization.rs), [proofs/memory_initialization.rs](proofs/memory_initialization.rs) | Exact lane seed, H-prime block, little-endian decoding, in-bounds flat writes and nested first-two-block initialization under geometry/word-slice preconditions; owning arena/allocation/full caller proof excluded. |
 | [src/memory.rs](src/memory.rs) | `Memory::zeroed_initialized` validates parameters and salt/tag lengths, checks native-size representability, then composes geometry, exact zeroed allocation shape, and first-two-block initialization without caller preconditions. It relies on a local, unmerged vstd `try_reserve_exact` specification; allocator implementation, general accessors, and the full hash caller remain unproved. |
 | [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, index-alpha mapping and exact split segment-position selectors satisfy their contracts. |
-| [src/core_segment.rs](src/core_segment.rs) | The real shared walker and scalar adapter agree with the exact segment-prefix arena model under valid geometry and exact arena size; outer traversal remains unproved. |
+| [src/core_segment.rs](src/core_segment.rs) | The real shared walker and scalar adapter agree with the exact segment-prefix arena model under valid geometry and exact arena size; scalar lane/slice/pass traversal agrees with `traversal_prefix`. |
+| [src/core_final.rs](src/core_final.rs) | The real final lane-tail XOR, little-endian 128-word serialization, and H-prime application compose to the exact tag model under representable arena geometry. The hash caller still must discharge these preconditions. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
 Proof roots include [verus/shared.rs](verus/shared.rs),
@@ -149,7 +150,7 @@ for parameter validation plus imported core/geometry lemmas.
 The new [verus/memory_initialization_verified.rs](verus/memory_initialization_verified.rs)
 root reports **69 verified, 0 errors** for lane-block generation and flat initialization.
 [verus/memory_owner_verified.rs](verus/memory_owner_verified.rs) reports
-**155 verified, 0 errors** with the local Verus/vstd review build, for the
+**156 verified, 0 errors** with the local Verus/vstd review build, for the
 geometry/allocation/initialization composition helper, the successful-result
 shape of `Memory::zeroed`, the real owning initializer, and imported helpers.
 The strict application gate passes; its trusted vstd base now
@@ -184,7 +185,12 @@ The real scalar segment loop now proves exact arena equality with its
 `segment_prefix` model, under valid segment geometry and exact arena size.
 It covers both addressing modes, counter scheduling and the scalar callback.
 The same root also proves lane/slice/pass traversal against `traversal_prefix`
-and reports **179 verified, 0 errors**. The full hash caller remains unverified.
+and reports **180 verified, 0 errors**. The full hash caller remains unverified.
+The final reduction/serialization/H-prime root reports **166 verified, 0 errors**:
+it proves the lane-tail XOR, little-endian 128-word encoding and resulting
+`scalar_tag` against the H-prime model. The whole `hash_into` caller still does
+not discharge the arena/output preconditions or establish that its `Ok` return
+contains this tag.
 The scalar callback uses proved gather/G/scatter:
 it updates exactly one block and preserves all other words. Owned block copies
 avoid unsupported borrowed slice-to-array conversion; their performance impact
@@ -198,7 +204,7 @@ Argon2d/i/id with accepted/representable inputs and normal successful execution;
 automatic detection, SIMD and legacy 0x10 are excluded from this first theorem.
 The original plan's scalar composition steps 4.2 (one segment) and 4.3 (outer
 traversal) are complete under their geometry/arena preconditions; steps 4.4
-(finalization) and 4.5 (returned-tag/API) remain open. Caller discharge and the
+(hash caller discharge) and 4.5 (returned-tag/API) remain open. Caller discharge and the
 returned-tag theorem are not proved. Drop/wiping are unchanged; zeroization is
 not part of these functional proofs. The full hash loop,
 caller invariants, SIMD equivalence and memory safety, permutation bijectivity,

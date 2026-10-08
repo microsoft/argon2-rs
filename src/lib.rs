@@ -26,6 +26,7 @@ mod block_g_columns;
 mod block_g_fill;
 mod block_primitives;
 mod core_address;
+mod core_final;
 mod core_impl;
 mod core_primitives;
 mod core_segment;
