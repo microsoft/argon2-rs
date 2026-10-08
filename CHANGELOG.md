@@ -61,3 +61,7 @@
 - Proved initial and per-index independent-address scheduling, destination
 	independence and the successor counter invariant. The real walker uses these
 	helpers; the encompassing segment-loop invariant remains unproved.
+- Proved the real scalar arena update through gather/G/scatter with an exact
+	destination-block frame. The scalar callback uses this verified path; borrowed
+	conversion helpers are retained only as a test oracle. Performance impact of
+	the owned block copies has not been benchmarked.

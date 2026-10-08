@@ -173,8 +173,7 @@ pub(crate) struct Segment {
 
 pub(crate) fn fill_segment_scalar(memory: &mut Memory, seg: &Segment) {
     walk_segment(memory, seg, |memory, prev, reference, curr, with_xor, _first| {
-        let (others, next) = memory.split_around(curr);
-        crate::block::fill_block(others.get(prev), others.get(reference), next, with_xor);
+        memory.fill_current(prev, reference, curr, with_xor);
     });
 }
 

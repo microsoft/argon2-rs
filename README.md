@@ -148,7 +148,7 @@ for parameter validation plus imported core/geometry lemmas.
 The new [verus/memory_initialization_verified.rs](verus/memory_initialization_verified.rs)
 root reports **69 verified, 0 errors** for lane-block generation and flat initialization.
 [verus/memory_owner_verified.rs](verus/memory_owner_verified.rs) reports
-**150 verified, 0 errors** with the local Verus/vstd review build, for the
+**153 verified, 0 errors** with the local Verus/vstd review build, for the
 geometry/allocation/initialization composition helper, the successful-result
 shape of `Memory::zeroed`, the real owning initializer, and imported helpers.
 The strict application gate passes; its trusted vstd base now
@@ -180,7 +180,11 @@ The helper has no caller preconditions. The address-block helpers now prove exac
 input encoding, zero counter/tail, counter increment, two scalar G transitions,
 initial scheduling at index 0/2 and per-index regeneration/word selection.
 The schedule invariant throughout the real segment loop, full hash body and
-traversal remain unverified. General accessors remain unverified. The constructor's successful-result shape and initializer are checked,
+traversal remain unverified. The scalar callback now uses proved gather/G/scatter:
+it updates exactly one block and preserves all other words. Owned block copies
+avoid unsupported borrowed slice-to-array conversion; their performance impact
+has not been benchmarked. General borrowed accessors remain unverified.
+The constructor's successful-result shape and initializer are checked,
 and geometry proves exact block product and lane_length>=8. The `try_reserve_exact` mapping is a trusted vstd specification in
 a separate local review worktree, not an allocator implementation proof or an
 upstream-approved release. No application-local assumption was added. The agreed

@@ -21,6 +21,99 @@ verus! {
 impl Memory {
     pub closed spec fn words(&self) -> Seq<u64> { self.0@ }
 }
+
+pub open spec fn block_words(words: Seq<u64>, block: int) -> Seq<u64> {
+    words.subrange(block * 128, (block + 1) * 128)
+}
+
+pub open spec fn write_block(words: Seq<u64>, block: int, replacement: Seq<u64>) -> Seq<u64> {
+    write_block_prefix(words, block, replacement, 128)
+}
+
+pub open spec fn write_block_prefix(
+    words: Seq<u64>, block: int, replacement: Seq<u64>, completed: int,
+) -> Seq<u64> {
+    Seq::new(words.len() as nat, |index: int|
+        if block * 128 <= index < block * 128 + completed {
+            replacement[index - block * 128]
+        } else { words[index] })
+}
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires (block as int + 1) * 128 <= words@.len(),
+    ensures result@ == block_words(words@, block as int),
+))]
+fn read_owned_block(words: &Vec<u64>, block: usize) -> [u64; 128] {
+    let _word_count = words.len();
+    let base = block * 128;
+    let mut result = [0u64; 128];
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant
+            forall|index: int| 0 <= index < 128 ==>
+                result@[index] == if index < offset as int {
+                    words@[base as int + index]
+                } else { 0u64 },
+    ))]
+    for offset in 0..128 {
+        result[offset] = words[base + offset];
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(result@ =~= block_words(words@, block as int)); }
+    result
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
+#[cfg_attr(verus_keep_ghost, verus_spec(
+    requires (block as int + 1) * 128 <= old(words)@.len(),
+    ensures final(words)@ == write_block(old(words)@, block as int, replacement@),
+))]
+fn write_owned_block(words: &mut Vec<u64>, block: usize, replacement: &[u64; 128]) {
+    let _word_count = words.len();
+    let base = block * 128;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost before = words@; }
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(words@ =~= write_block_prefix(before, block as int, replacement@, 0)); }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant words@ == write_block_prefix(before, block as int, replacement@, offset as int),
+    ))]
+    for offset in 0..128 {
+        words[base + offset] = replacement[offset];
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(words@ =~= write_block_prefix(before, block as int, replacement@, offset as int + 1));
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, cfg_eval)]
+#[cfg_attr(verus_keep_ghost, verus_verify)]
+impl Memory {
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        requires (previous as int + 1) * 128 <= old(self).words().len(),
+            (reference as int + 1) * 128 <= old(self).words().len(),
+            (current as int + 1) * 128 <= old(self).words().len(),
+        ensures final(self).words() == write_block(old(self).words(), current as int,
+            crate::specs::fill_block_result(
+                block_words(old(self).words(), previous as int),
+                block_words(old(self).words(), reference as int),
+                block_words(old(self).words(), current as int), with_xor)),
+    ))]
+    pub(crate) fn fill_current(
+        &mut self,
+        previous: usize,
+        reference: usize,
+        current: usize,
+        with_xor: bool,
+    ) {
+        let prev = read_owned_block(&self.0, previous);
+        let reference = read_owned_block(&self.0, reference);
+        let mut next = read_owned_block(&self.0, current);
+        crate::block_g_fill::fill_block(&prev, &reference, &mut next, with_xor);
+        write_owned_block(&mut self.0, current, &next);
+    }
 }
 
 #[cfg_attr(verus_keep_ghost, cfg_eval)]
@@ -131,6 +224,7 @@ impl Memory {
     }
 
     /// Block `c` for writing, plus read access to every other block.
+    #[cfg(test)]
     #[inline(always)]
     pub(crate) fn split_around(&mut self, c: usize) -> (Others<'_>, &mut [u64; Block::SIZE_WORDS]) {
         const W: usize = Block::SIZE_WORDS;
@@ -142,12 +236,14 @@ impl Memory {
 
 /// Read access to every block except the one [`Memory::split_around`] lent
 /// out for writing. Asking for that block panics.
+#[cfg(test)]
 pub(crate) struct Others<'a> {
     lo: &'a [u64],
     hi: &'a [u64],
     c: usize,
 }
 
+#[cfg(test)]
 impl<'a> Others<'a> {
     #[inline(always)]
     pub(crate) fn get(&self, i: usize) -> &'a [u64; Block::SIZE_WORDS] {
@@ -170,6 +266,30 @@ impl Drop for Memory {
 #[cfg(test)]
 mod resource_tests {
     use super::*;
+
+    #[test]
+    fn scalar_fill_preserves_other_blocks() {
+        for with_xor in [false, true] {
+            for (previous, reference, current) in [(0, 1, 2), (2, 0, 1), (1, 1, 0)] {
+                let words: Vec<u64> = (0..4 * 128)
+                    .map(|index| (index as u64).wrapping_mul(0x9e3779b97f4a7c15))
+                    .collect();
+                let mut memory = Memory(words.clone());
+                let mut reference_memory = Memory(words.clone());
+                let (others, next) = reference_memory.split_around(current);
+                crate::block_g_fill::fill_block(
+                    others.get(previous),
+                    others.get(reference),
+                    next,
+                    with_xor,
+                );
+                memory.fill_current(previous, reference, current, with_xor);
+                assert_eq!(memory.0, reference_memory.0);
+                assert_eq!(&memory.0[..current * 128], &words[..current * 128]);
+                assert_eq!(&memory.0[(current + 1) * 128..], &words[(current + 1) * 128..]);
+            }
+        }
+    }
 
     #[test]
     fn owned_initialize_matches_geometry_and_preserves_other_blocks() {

@@ -81,12 +81,17 @@ The checked H0/parameter-adapter root reports **120 verified, 0 errors**.
 The parameter-validation root reports **63 verified, 0 errors**. These roots
 import existing core/geometry proofs and overlap; counts are not new coverage totals.
 The seed/block/flat-arena initialization root reports **69 verified, 0 errors**.
-The real owner/constructor root reports **150 verified, 0 errors** including
+The real owner/constructor root reports **153 verified, 0 errors** including
 imported G/core/BLAKE2b helpers, with the local vstd mapping. It proves the
 parameter-checking geometry/allocation/initialization adapter and the constructor's
 exact length and zero contents on `Ok`, not allocation success or allocator
 correctness. The core calls the adapter, but the full hash body and traversal
-are not verified. The geometry identity assertion adds one check
+are not verified.
+The real scalar callback now uses verified gather/G/scatter. Its contract
+updates exactly the destination block and preserves every other arena word;
+general borrowed accessors and the enclosing segment loop remain unverified.
+This uses owned block copies rather than an unsupported slice-to-array conversion.
+The geometry identity assertion adds one check
 to importing roots; these are overlapping obligations, not coverage totals.
 The parts-prefix definition and bound lemma add two obligations to roots importing
 the streaming proof module. The API root additionally uses ghost-only `cfg_eval`

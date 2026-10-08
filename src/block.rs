@@ -1,7 +1,8 @@
 //! The Argon2 1024-byte block type and its compression function `G`
 //! (spec section 3.4 and Appendix A).
 
-pub use crate::block_g_fill::fill_block;
+#[cfg(test)]
+use crate::block_g_fill::fill_block;
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::{verus_spec, verus_verify};
 
