@@ -5,8 +5,9 @@ of the [reference Argon2 implementation](https://github.com/P-H-C/phc-winner-arg
 the password hash that won the Password Hashing Competition (PHC).
 
 The crate combines runtime-dispatched SIMD with same-source
-[Verus](https://github.com/verus-lang/verus) verification of selected scalar and
-indexing functions. BLAKE2b and the Argon2 core are implemented locally.
+[Verus](https://github.com/verus-lang/verus) verification of scalar Argon2,
+from H0 through the successful returned tag. BLAKE2b and the Argon2 core are
+implemented locally; the SIMD paths are not covered by that theorem.
 
 ## Attribution And Security Reporting
 
@@ -106,6 +107,36 @@ The crate uses `std`; its feature names do not imply `no_std` support.
   exclusively borrowed elements. Differential tests are evidence, not a proof
   of these kernels or the wipe helper.
 
+## Proof Plan And Status
+
+The work follows the original staged plan. Stages 1 and 2 built reusable
+primitive proofs; Stage 4 composes them in the order required by the hash.
+
+| Original stage | Status | Result / remaining boundary |
+| --- | --- | --- |
+| **1. Prove scalar G** | Complete | The production row pass, column pass and full 128-word G transition, including both XOR modes, are proved without application-local assumptions. |
+| **2. Prove BLAKE2b and H-prime** | Complete for the implemented models | Compression, buffering, update/finalize, multipart composition and both H-prime branches are proved under explicit size/capacity preconditions. Independent review that these models faithfully encode RFC 7693/9106 remains separate. |
+| **3. Compose the scalar hash** | Complete for the stated successful-return theorem | Steps 3.1–3.5 below compose to `Ok(()) => output == model tag` for forced scalar, Argon2d/i/id, version `0x13`, and accepted/representable inputs. Allocation failure may return `Err`. |
+
+The composition is sequential: each row establishes the state and contract
+needed by the next one.
+
+| Stage 3 step | Proof chain | Status and root |
+| --- | --- | --- |
+| **3.1 H0 and initial memory** | Validate parameters and lengths → serialize the requested parameters into H0 → derive lane seeds and first blocks → create the owned arena with exact geometry. | Complete. H0, validation, initialization and owner roots report 120/0, 63/0, 69/0 and 156/0. The owner result relies on the disclosed local vstd allocation-shape specification. |
+| **3.2 Addressing and one segment** | Encode address input → prove counter and 128-word scheduling → prove exact predecessor/reference indices and exclusions → gather source blocks, apply G, and update only the current block → prove the segment's final arena. | Complete. Address, shared-selector and segment roots report 30/0, 62/0 and 180/0. The segment model covers independent and dependent addressing. |
+| **3.3 Pass, slice and lane traversal** | Compose segment transitions in lane order → compose four slices → compose all passes, preserving the exact arena prefix at each loop boundary. | Complete. Included in the segment/traversal root (180/0), with final arena equality against `traversal_prefix`. |
+| **3.4 Final block and tag derivation** | XOR each lane's last block → serialize 128 words little-endian → apply the already-proved H-prime function. | Complete. The finalization root reports 166/0 and proves the `scalar_tag` model. |
+| **3.5 Caller and successful returned tag** | Compose checked H0 → successful owner construction → traversal → scalar tag → output copy; discharge helper preconditions inside the caller. | Complete for the forced-scalar caller. The caller root reports 200/0: `Ok(())` implies exact output equality with the whole-hash model. Public wrapper backend selection and SIMD are outside this theorem. |
+
+Counts are verifier obligations, not coverage percentages; roots overlap and
+import shared helpers. The theorem proves functional agreement with the encoded
+model, not independent RFC fidelity, cryptographic security, constant time or
+zeroization. The local allocation specification and verification toolchain are
+also trust boundaries. Edge security approval, supported-platform CI, extended
+fuzzing, sandboxed/cross-architecture performance and rollout sign-off remain
+separate release gates.
+
 ## Same-Source Verification
 
 The same-source layout keeps executable leaves in ordinary Rust source.
@@ -131,7 +162,6 @@ required for the production path.
 | [src/core_primitives.rs](src/core_primitives.rs) | Parameter predicate, rounded memory geometry, previous index, addressing/XOR decisions, reference-area size, index-alpha mapping and exact split segment-position selectors satisfy their contracts. |
 | [src/core_segment.rs](src/core_segment.rs) | The real shared walker and scalar adapter agree with the exact segment-prefix arena model; scalar lane/slice/pass traversal agrees with `traversal_prefix`. |
 | [src/core_final.rs](src/core_final.rs) | The real final lane-tail XOR, little-endian 128-word serialization, and H-prime application compose to the exact tag model under representable arena geometry. |
-| [src/core_scalar_caller.rs](src/core_scalar_caller.rs) | The real checked H0, successful arena initialization, scalar traversal, finalization and output copy compose: `Ok(())` implies exact tag equality for accepted inputs. |
 | [src/core_scalar_caller.rs](src/core_scalar_caller.rs) | The real checked H0, successful arena initialization, scalar traversal, final reduction, serialization, H-prime and output copy compose: `Ok(())` implies exact tag equality for accepted inputs. |
 | [proofs/geometry.rs](proofs/geometry.rs) | Supporting geometry, division, product, and indexing bounds. |
 
@@ -191,8 +221,9 @@ root reports **69 verified, 0 errors** for lane-block generation and flat initia
 geometry/allocation/initialization composition helper, the successful-result
 shape of `Memory::zeroed`, the real owning initializer, and imported helpers.
 
-There are 11 executable leaf functions; the check count includes proof helpers.
-Counts are verifier checks, not coverage percentages. Mathematical definitions live in
+The shared primitive root covers 11 executable leaf functions; its count also
+includes proof helpers. Across all roots, counts are verifier obligations, not
+coverage percentages. Mathematical definitions live in
 [specs/mod.rs](specs/mod.rs).
 
 This includes an end-to-end functional theorem for the forced-scalar caller,
@@ -227,6 +258,7 @@ and reports **180 verified, 0 errors**.
 The final reduction/serialization/H-prime root reports **166 verified, 0 errors**:
 it proves the lane-tail XOR, little-endian 128-word encoding and resulting
 `scalar_tag` against the H-prime model.
+
 The whole scalar caller root reports **200 verified, 0 errors** and proves
 `hash_into_scalar`: for accepted inputs, `Ok(())` implies that `out` equals the
 whole-hash model for the same Argon2d/i/id inputs and parameters. The production
