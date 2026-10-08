@@ -7,7 +7,6 @@ use crate::memory::Memory;
 use crate::{Algorithm, Error, Params, Version};
 
 const SYNC_POINTS: u32 = 4;
-const ADDRESSES_IN_BLOCK: usize = Block::SIZE_WORDS; // 128
 
 /// Which implementation of the block-compression step `fill_segment` uses.
 /// Every backend produces bit-identical output; only speed differs. The
@@ -214,21 +213,21 @@ where
     let starting_index: u32 = if pass == 0 && slice == 0 { 2 } else { 0 };
 
     // Address-generation state for data-independent addressing.
-    let mut input_block = Block::zero();
-    let mut address_block = Block::zero();
-    if data_independent {
-        input_block.0 = crate::core_address::initial_input(
+    let (input_words, address_words) = if data_independent {
+        crate::core_address::initial_state(
             pass,
             lane,
             slice,
             memory_blocks,
             total_passes,
             algorithm as u32,
-        );
-        if starting_index == 2 {
-            next_addresses(&mut input_block, &mut address_block);
-        }
-    }
+            starting_index,
+        )
+    } else {
+        ([0u64; 128], [0u64; 128])
+    };
+    let mut input_block = Block(input_words);
+    let mut address_block = Block(address_words);
 
     for i in starting_index..segment_length {
         let (prev_pos, curr_pos) = crate::core_primitives::segment_base_positions(
@@ -242,10 +241,7 @@ where
             i,
         );
         let pseudo_rand: u64 = if data_independent {
-            if (i as usize) % ADDRESSES_IN_BLOCK == 0 {
-                next_addresses(&mut input_block, &mut address_block);
-            }
-            address_block.0[(i as usize) % ADDRESSES_IN_BLOCK]
+            crate::core_address::scheduled_word(&mut input_block.0, &mut address_block.0, i)
         } else {
             memory.get(prev_pos as usize)[0]
         };
@@ -275,12 +271,4 @@ where
             i == starting_index,
         );
     }
-}
-
-/// Regenerates the address block used for data-independent addressing:
-/// `address_block <- G(zero, G(zero, input_block))`, incrementing the
-/// segment-local counter first (spec section 3.3, "Getting two 32-bit
-/// values").
-fn next_addresses(input_block: &mut Block, address_block: &mut Block) -> u64 {
-    crate::core_address::next_addresses(&mut input_block.0, &mut address_block.0)
 }

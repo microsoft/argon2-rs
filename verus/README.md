@@ -96,12 +96,16 @@ The shared root includes two production selector contracts. The base selector
 proves `prev`/`curr` are in bounds and distinct before the data-dependent read;
 the reference selector proves `ref` is in bounds and `ref != curr` after
 `pseudo_rand` is available. The runtime debug assertion remains as a guard.
-The address root reports **26 verified, 0 errors**: it proves exact address-input
+The address root reports **30 verified, 0 errors**: it proves exact address-input
 field encoding with a zero counter/tail, the production
 counter increment (under `counter < u64::MAX`) and composes two real scalar G
 calls into the address-block transition model. The same-source `next_addresses`
-helper is wired into the walker. Address-block call scheduling, the encompassing
-segment loop and outer traversal remain unproved.
+helpers are wired into the walker. Initialization at index 0/2, per-index
+regeneration/word selection, canonical destination-independent address blocks,
+and the successor counter relation are proved. The scheduling helper discharges
+counter overflow internally from its u32-index invariant. Establishing that
+invariant throughout the encompassing segment loop and outer traversal remains
+unproved.
 The shared step-progress lemma adds one obligation to every root, not new G
 or whole-hash coverage.
 Counts are verifier obligations, not function or coverage counts.

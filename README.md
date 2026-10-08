@@ -177,8 +177,10 @@ and geometry preconditions, preserving untouched slots. `Memory::zeroed_initiali
 now validates parameters/salt/tag and native-size representability internally,
 then composes geometry, allocation and initialization; the core calls it.
 The helper has no caller preconditions. The address-block helpers now prove exact
-input encoding, zero counter/tail, counter increment and two scalar G transitions, but their per-segment scheduling,
-the full hash body and traversal remain unverified. General accessors remain unverified. The constructor's successful-result shape and initializer are checked,
+input encoding, zero counter/tail, counter increment, two scalar G transitions,
+initial scheduling at index 0/2 and per-index regeneration/word selection.
+The schedule invariant throughout the real segment loop, full hash body and
+traversal remain unverified. General accessors remain unverified. The constructor's successful-result shape and initializer are checked,
 and geometry proves exact block product and lane_length>=8. The `try_reserve_exact` mapping is a trusted vstd specification in
 a separate local review worktree, not an allocator implementation proof or an
 upstream-approved release. No application-local assumption was added. The agreed

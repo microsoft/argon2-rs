@@ -49,6 +49,22 @@ pub proof fn generated_address_composition(
 {
     reveal(generated_address_block);
 }
+
+pub proof fn generated_address_independent(
+    input: Seq<u64>, first: Seq<u64>, second: Seq<u64>,
+)
+    ensures generated_address_block(input, first) == generated_address_block(input, second),
+{
+    reveal(generated_address_block);
+    reveal(address_g);
+}
+
+pub proof fn schedule_successor(index: u32)
+    requires index < u32::MAX,
+    ensures index as int / 128 + 1 == (index as int + 1) / 128
+        + if (index as int + 1) % 128 == 0 { 0int } else { 1int },
+{
+}
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -127,6 +143,77 @@ pub(crate) fn next_addresses(input_block: &mut [u64; 128], address_block: &mut [
     0
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires start == 0 || start == 2,
+    ensures result.0@ == address_input(pass, lane, slice, blocks, passes, algorithm)
+            .update(6, if start == 2 { 1u64 } else { 0u64 }),
+        result.0@[6] == start as int / 128
+            + if start % 128 == 0 { 0int } else { 1int },
+        result.1@ == if start == 2 {
+            generated_address_block(result.0@, zero_words())
+        } else { zero_words() },
+))]
+pub(crate) fn initial_state(
+    pass: u32,
+    lane: u32,
+    slice: u32,
+    blocks: u32,
+    passes: u32,
+    algorithm: u32,
+    start: u32,
+) -> ([u64; 128], [u64; 128]) {
+    let mut input = initial_input(pass, lane, slice, blocks, passes, algorithm);
+    let mut address = [0u64; 128];
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(zero_words);
+        assert(address@ =~= zero_words());
+    }
+    if start == 2 {
+        next_addresses(&mut input, &mut address);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if start == 0 {
+            assert(input@ == address_input(pass, lane, slice, blocks, passes, algorithm)
+                .update(6, 0u64));
+        }
+    }
+    (input, address)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires old(input_block)@[6] == index as int / 128
+        + if index % 128 == 0 { 0int } else { 1int },
+        index % 128 != 0 ==> old(address_block)@
+            == generated_address_block(old(input_block)@, zero_words()),
+    ensures final(input_block)@[6] == index as int / 128 + 1,
+        final(input_block)@ == old(input_block)@.update(
+            6, final(input_block)@[6]),
+        final(address_block)@ == if index % 128 == 0 {
+            generated_address_block(final(input_block)@, old(address_block)@)
+        } else { old(address_block)@ },
+        final(address_block)@ == generated_address_block(final(input_block)@, zero_words()),
+        result == final(address_block)@[index as int % 128],
+))]
+pub(crate) fn scheduled_word(
+    input_block: &mut [u64; 128],
+    address_block: &mut [u64; 128],
+    index: u32,
+) -> u64 {
+    if index % 128 == 0 {
+        next_addresses(input_block, address_block);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(input_block@ == old(input_block)@.update(6, input_block@[6]));
+        if index % 128 == 0 {
+            generated_address_independent(input_block@, old(address_block)@, zero_words());
+        }
+    }
+    address_block[(index % 128) as usize]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -139,5 +226,35 @@ mod tests {
         let input = initial_input(u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX);
         assert!(input[..6].iter().all(|word| *word == u32::MAX as u64));
         assert!(input[6..].iter().all(|word| *word == 0));
+    }
+
+    #[test]
+    fn schedule_matches_direct_two_g_across_boundaries() {
+        for start in [0u32, 2u32] {
+            let (mut input, mut address) = initial_state(0, 1, 0, 1024, 3, 1, start);
+            let mut expected_input = initial_input(0, 1, 0, 1024, 3, 1);
+            let mut expected_address = [0u64; 128];
+            let zero = [0u64; 128];
+            let mut temp = [0u64; 128];
+            if start == 2 {
+                expected_input[6] += 1;
+                crate::block::compress(&zero, &expected_input, &mut temp);
+                crate::block::compress(&zero, &temp, &mut expected_address);
+            }
+            for index in start..260 {
+                if index % 128 == 0 {
+                    expected_input[6] += 1;
+                    crate::block::compress(&zero, &expected_input, &mut temp);
+                    crate::block::compress(&zero, &temp, &mut expected_address);
+                }
+                assert_eq!(
+                    scheduled_word(&mut input, &mut address, index),
+                    expected_address[(index % 128) as usize]
+                );
+                assert_eq!(input, expected_input);
+                assert_eq!(address, expected_address);
+                assert_eq!(input[6], index as u64 / 128 + 1);
+            }
+        }
     }
 }

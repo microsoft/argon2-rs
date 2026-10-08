@@ -58,3 +58,6 @@
 	scheduling and the encompassing traversal proof remain open.
 - Proved exact address-input field encoding and zero counter/tail in a
 	same-source constructor used by the segment walker.
+- Proved initial and per-index independent-address scheduling, destination
+	independence and the successor counter invariant. The real walker uses these
+	helpers; the encompassing segment-loop invariant remains unproved.
