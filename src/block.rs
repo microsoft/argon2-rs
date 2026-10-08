@@ -69,6 +69,7 @@ fn permute(v: &mut [u64; 16]) {
 /// `P` rowwise then columnwise over the 8x8 matrix of 16-byte registers,
 /// output `Z xor R`.
 #[inline(always)]
+#[cfg(test)]
 pub fn compress(x: &[u64], y: &[u64], out: &mut [u64]) {
     let x: &[u64; 128] = x.try_into().unwrap();
     let y: &[u64; 128] = y.try_into().unwrap();

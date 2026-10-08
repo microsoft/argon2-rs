@@ -51,5 +51,8 @@
 - Proved the production split segment-position selectors: predecessor/current
 	positions are in-bounds and distinct before the data-dependent read; the
 	reference position is in-bounds and differs from current afterward. Wired the
-	walker in this order. Address-block generation and the encompassing traversal
-	proof remain open.
+	walker in this order.
+- Proved the real data-independent address-block helper's counter increment and
+	two scalar G transitions compose to the address-block model, assuming the
+	counter is below `u64::MAX`. The walker now uses this helper; address-block
+	scheduling and the encompassing traversal proof remain open.

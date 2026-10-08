@@ -2,7 +2,7 @@
 //! (Argon2 spec sections 3.2 and 3.3).
 
 use crate::blake2b::blake2b_long;
-use crate::block::{compress, Block};
+use crate::block::Block;
 use crate::memory::Memory;
 use crate::{Algorithm, Error, Params, Version};
 
@@ -281,10 +281,5 @@ where
 /// segment-local counter first (spec section 3.3, "Getting two 32-bit
 /// values").
 fn next_addresses(input_block: &mut Block, address_block: &mut Block) -> u64 {
-    input_block.0[6] += 1;
-    let zero = Block::zero();
-    let mut tmp = Block::zero();
-    compress(&zero.0, &input_block.0, &mut tmp.0);
-    compress(&zero.0, &tmp.0, &mut address_block.0);
-    0
+    crate::core_address::next_addresses(&mut input_block.0, &mut address_block.0)
 }

@@ -21,6 +21,7 @@ and proof blocks. This same-source layout requires no executable export step.
 | [parameters_verified.rs](parameters_verified.rs) | [../src/parameters.rs](../src/parameters.rs), core/geometry helpers | Parameter/salt/tag validation returns Ok exactly for its accepted domain; guarded arithmetic is checked. |
 | [memory_initialization_verified.rs](memory_initialization_verified.rs) | [../src/memory_initialization.rs](../src/memory_initialization.rs), [../proofs/memory_initialization.rs](../proofs/memory_initialization.rs), H-prime helpers | Exact H0/LE32 column/lane seed, H-prime(1024) decoding, in-bounds flat placement and real nested initialization loops; allocation/Memory wrapper/caller discharge excluded. |
 | [memory_owner_verified.rs](memory_owner_verified.rs) | [../src/memory.rs](../src/memory.rs), geometry/initialization/G/BLAKE2b helpers | `Memory::zeroed_initialized` validates parameters, salt/tag lengths and native-size representability internally, then composes geometry, successful exact-length zeroed allocation and first-block initialization with no caller preconditions. Depends on the local trusted vstd `try_reserve_exact` spec; allocator implementation, general accessors and full hash body remain outside the proof. |
+| [core_address_verified.rs](core_address_verified.rs) | [../src/core_address.rs](../src/core_address.rs), [../src/block_g_fill.rs](../src/block_g_fill.rs) | The real counter increment and two scalar G calls compose to the generated address-block model, under a non-overflow precondition; per-segment scheduling and traversal remain outside. |
 
 Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
 by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
@@ -54,6 +55,7 @@ VERUS=/path/to/verus
 "$VERUS" verus/parameters_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/memory_initialization_verified.rs --crate-type lib --no-cheating --rlimit 30
 "$VERUS" verus/memory_owner_verified.rs --crate-type lib --no-cheating --rlimit 30
+"$VERUS" verus/core_address_verified.rs --crate-type lib --no-cheating --rlimit 30
 ```
 
 The matching source revision is
@@ -94,8 +96,11 @@ The shared root includes two production selector contracts. The base selector
 proves `prev`/`curr` are in bounds and distinct before the data-dependent read;
 the reference selector proves `ref` is in bounds and `ref != curr` after
 `pseudo_rand` is available. The runtime debug assertion remains as a guard.
-Address-block generation, the encompassing segment loop, and outer traversal are
-not proved by these leaves.
+The address root reports **25 verified, 0 errors**: it proves the production
+counter increment (under `counter < u64::MAX`) and composes two real scalar G
+calls into the address-block transition model. The same-source `next_addresses`
+helper is wired into the walker. Address-block call scheduling, the encompassing
+segment loop and outer traversal remain unproved.
 The shared step-progress lemma adds one obligation to every root, not new G
 or whole-hash coverage.
 Counts are verifier obligations, not function or coverage counts.

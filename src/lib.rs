@@ -25,6 +25,7 @@ mod block_g_column;
 mod block_g_columns;
 mod block_g_fill;
 mod block_primitives;
+mod core_address;
 mod core_impl;
 mod core_primitives;
 mod initial_hash;

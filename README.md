@@ -176,8 +176,9 @@ are proved. The real flat initialization loops are proved under exact arena-size
 and geometry preconditions, preserving untouched slots. `Memory::zeroed_initialized`
 now validates parameters/salt/tag and native-size representability internally,
 then composes geometry, allocation and initialization; the core calls it.
-The helper has no caller preconditions, but the full hash body remains unverified
-and traversal is open. General accessors remain unverified. The constructor's successful-result shape and initializer are checked,
+The helper has no caller preconditions. The address-block helper now proves its
+counter increment and two scalar G transitions, but its per-segment scheduling,
+the full hash body and traversal remain unverified. General accessors remain unverified. The constructor's successful-result shape and initializer are checked,
 and geometry proves exact block product and lane_length>=8. The `try_reserve_exact` mapping is a trusted vstd specification in
 a separate local review worktree, not an allocator implementation proof or an
 upstream-approved release. No application-local assumption was added. The agreed
