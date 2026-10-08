@@ -137,6 +137,8 @@ pub fn index_alpha(
         specs::valid_position(pass, slice, segment_length, index),
     ensures result.0 < memory_blocks, result.1 < memory_blocks,
         result.0 != result.1,
+        result.0 as int == specs::predecessor_position(
+            lane, lane_length, slice, segment_length, index),
         result.1 as int == lane as int * lane_length as int
             + slice as int * segment_length as int + index as int,
 ))]
@@ -195,6 +197,8 @@ pub fn segment_base_positions(
         memory_blocks as int == lanes as int * lane_length as int,
         specs::valid_position(pass, slice, segment_length, index),
     ensures result < memory_blocks,
+        result as int == specs::reference_position(
+            pass, slice, segment_length, lane_length, lanes, lane, index, pseudo_rand),
         result as int != lane as int * lane_length as int
             + slice as int * segment_length as int + index as int,
 ))]

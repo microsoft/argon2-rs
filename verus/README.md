@@ -101,6 +101,8 @@ The shared root includes two production selector contracts. The base selector
 proves `prev`/`curr` are in bounds and distinct before the data-dependent read;
 the reference selector proves `ref` is in bounds and `ref != curr` after
 `pseudo_rand` is available. The runtime debug assertion remains as a guard.
+Both selectors additionally prove exact predecessor/reference-position model
+agreement, not only bounds and current-block exclusion.
 The address root reports **30 verified, 0 errors**: it proves exact address-input
 field encoding with a zero counter/tail, the production
 counter increment (under `counter < u64::MAX`) and composes two real scalar G

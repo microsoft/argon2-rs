@@ -65,3 +65,5 @@
 	destination-block frame. The scalar callback uses this verified path; borrowed
 	conversion helpers are retained only as a test oracle. Performance impact of
 	the owned block copies has not been benchmarked.
+- Strengthened the production segment selectors to prove exact predecessor and
+	reference-position model agreement in addition to bounds and exclusion.

@@ -487,6 +487,24 @@ pub open spec fn fill_block_result(
     xor_words(tmp, permute_columns_prefix(permute_rows_prefix(r, 8), 8))
 }
 
+pub open spec fn predecessor_position(
+    lane: u32, lane_length: u32, slice: u32, segment: u32, index: u32,
+) -> int {
+    let column = slice as int * segment as int + index as int;
+    lane as int * lane_length as int
+        + if column == 0 { lane_length as int - 1 } else { column - 1 }
+}
+
+pub open spec fn reference_position(
+    pass: u32, slice: u32, segment: u32, lane_length: u32,
+    lanes: u32, lane: u32, index: u32, pseudo_rand: u64,
+) -> int {
+    let reference_lane = if pass == 0 && slice == 0 { lane }
+        else { ((pseudo_rand >> 32) as u32) % lanes };
+    reference_lane as int * lane_length as int
+        + index_alpha(pass, slice, segment, index, pseudo_rand as u32, reference_lane == lane)
+}
+
 pub open spec fn valid_params(lanes: u32, memory: u32, passes: u32) -> bool {
     1 <= lanes <= 0x00ff_ffff && 8 * lanes <= memory && passes >= 1
 }
