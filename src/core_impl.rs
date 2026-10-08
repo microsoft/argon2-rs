@@ -217,13 +217,14 @@ where
     let mut input_block = Block::zero();
     let mut address_block = Block::zero();
     if data_independent {
-        input_block.0[0] = pass as u64;
-        input_block.0[1] = lane as u64;
-        input_block.0[2] = slice as u64;
-        input_block.0[3] = memory_blocks as u64;
-        input_block.0[4] = total_passes as u64;
-        input_block.0[5] = algorithm as u64;
-        input_block.0[6] = 0;
+        input_block.0 = crate::core_address::initial_input(
+            pass,
+            lane,
+            slice,
+            memory_blocks,
+            total_passes,
+            algorithm as u32,
+        );
         if starting_index == 2 {
             next_addresses(&mut input_block, &mut address_block);
         }

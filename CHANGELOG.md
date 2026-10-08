@@ -56,3 +56,5 @@
 	two scalar G transitions compose to the address-block model, assuming the
 	counter is below `u64::MAX`. The walker now uses this helper; address-block
 	scheduling and the encompassing traversal proof remain open.
+- Proved exact address-input field encoding and zero counter/tail in a
+	same-source constructor used by the segment walker.

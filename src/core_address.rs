@@ -7,6 +7,18 @@ use vstd::prelude::*;
 
 #[cfg(verus_keep_ghost)]
 verus! {
+pub open spec fn address_input(
+    pass: u32, lane: u32, slice: u32, blocks: u32, passes: u32, algorithm: u32,
+) -> Seq<u64> {
+    Seq::new(128, |index: int| if index == 0 { pass as u64 }
+        else if index == 1 { lane as u64 }
+        else if index == 2 { slice as u64 }
+        else if index == 3 { blocks as u64 }
+        else if index == 4 { passes as u64 }
+        else if index == 5 { algorithm as u64 }
+        else { 0u64 })
+}
+
 #[verifier::opaque]
 pub open spec fn zero_words() -> Seq<u64> {
     Seq::new(128, |_index: int| 0u64)
@@ -37,6 +49,31 @@ pub proof fn generated_address_composition(
 {
     reveal(generated_address_block);
 }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result@ == address_input(pass, lane, slice, blocks, passes, algorithm),
+))]
+pub(crate) fn initial_input(
+    pass: u32,
+    lane: u32,
+    slice: u32,
+    blocks: u32,
+    passes: u32,
+    algorithm: u32,
+) -> [u64; 128] {
+    let mut words = [0u64; 128];
+    words[0] = pass as u64;
+    words[1] = lane as u64;
+    words[2] = slice as u64;
+    words[3] = blocks as u64;
+    words[4] = passes as u64;
+    words[5] = algorithm as u64;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(words@ =~= address_input(pass, lane, slice, blocks, passes, algorithm));
+    }
+    words
 }
 
 #[cfg_attr(verus_keep_ghost, verus_verify)]
@@ -88,4 +125,19 @@ pub(crate) fn next_addresses(input_block: &mut [u64; 128], address_block: &mut [
         );
     }
     0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn input_fields_and_zero_tail() {
+        let input = initial_input(7, 3, 2, 1024, 9, 1);
+        assert_eq!(&input[..6], &[7, 3, 2, 1024, 9, 1]);
+        assert!(input[6..].iter().all(|word| *word == 0));
+        let input = initial_input(u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX);
+        assert!(input[..6].iter().all(|word| *word == u32::MAX as u64));
+        assert!(input[6..].iter().all(|word| *word == 0));
+    }
 }
