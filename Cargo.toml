@@ -33,3 +33,13 @@ opt-level = 3
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(verus_keep_ghost)'] }
+
+[lints.clippy]
+# Keep proof-linked code in the explicit form consumed by Verus.
+manual_is_multiple_of = "allow"
+manual_memcpy = "allow"
+manual_range_contains = "allow"
+manual_rotate = "allow"
+needless_range_loop = "allow"
+ptr_arg = "allow"
+too_many_arguments = "allow"

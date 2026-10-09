@@ -9,6 +9,15 @@ permissions:
   contents: read
 
 jobs:
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal --component clippy
+      - name: Clippy
+        run: cargo +stable clippy --locked --all-targets --all-features -- --deny warnings
+
   test:
     strategy:
       fail-fast: false

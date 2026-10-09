@@ -1,5 +1,10 @@
 # argon2-rs
 
+[![Rust checks](https://github.com/optiklab/argon2-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/optiklab/argon2-rs/actions/workflows/ci.yml)
+[![Last commit](https://img.shields.io/github/last-commit/optiklab/argon2-rs)](https://github.com/optiklab/argon2-rs/commits/main/)
+[![Minimum Rust version](https://img.shields.io/badge/rustc-1.88%2B-blue.svg)](https://github.com/optiklab/argon2-rs/blob/main/Cargo.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/optiklab/argon2-rs/blob/main/LICENSE)
+
 A dependency-free Rust implementation of the algorithms and byte-level behavior
 of the [reference Argon2 implementation](https://github.com/P-H-C/phc-winner-argon2),
 the password hash that won the Password Hashing Competition (PHC).
