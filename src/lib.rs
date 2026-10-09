@@ -13,6 +13,7 @@
 //! Verus contracts. This is not an end-to-end correctness or timing proof.
 
 #![deny(unsafe_code)]
+#![warn(missing_docs)]
 
 mod blake2b;
 mod blake2b_buffer;
@@ -43,15 +44,20 @@ mod wipe;
 #[allow(unsafe_code)]
 mod simd;
 
-pub use block::Block;
-pub use core_impl::Backend;
+/// CPU implementation requested for Argon2 block compression.
+pub use core_backend::Backend;
+/// Public Argon2 algorithm, version, parameter, and error types.
 pub use parameters::{Algorithm, Error, Params, Version};
 
 impl Params {
-    pub const RECOMMENDED: Params = Params { parallelism: 4, memory_kib: 19 * 1024, iterations: 2 };
+    /// Convenience configuration used by [`Argon2::default`].
+    ///
+    /// This is not a security recommendation or an RFC 9106 recommended
+    /// profile. Choose costs for the application's threat model and resources.
+    pub const DEFAULT: Params = Params { parallelism: 4, memory_kib: 19 * 1024, iterations: 2 };
 }
 
-/// A configured Argon2 hasher with automatic or explicitly selected backend.
+/// A configured Argon2 hasher with automatic or explicitly requested backend.
 ///
 /// ```
 /// use argon2_verus::{Algorithm, Argon2, Params, Version};
@@ -61,7 +67,8 @@ impl Params {
 /// hasher.hash_password_into(b"password", b"saltsalt", &mut tag).unwrap();
 /// ```
 /// The small parameters above keep the example fast; select deployment costs
-/// and generate a random salt for stored passwords.
+/// and generate a random salt for stored passwords. The default parameters
+/// are a convenience configuration, not a security recommendation.
 pub struct Argon2 {
     algorithm: Algorithm,
     version: Version,
@@ -71,25 +78,38 @@ pub struct Argon2 {
 
 impl Default for Argon2 {
     fn default() -> Self {
-        Self::new(Algorithm::Argon2id, Version::V0x13, Params::RECOMMENDED)
+        Self::new(Algorithm::Argon2id, Version::V0x13, Params::DEFAULT)
     }
 }
 
 impl Argon2 {
+    /// Creates a hasher for the given algorithm, version, and parameters.
     pub fn new(algorithm: Algorithm, version: Version, params: Params) -> Self {
         Self { algorithm, version, params, backend: None }
     }
 
-    /// Forces a specific compression backend instead of runtime detection.
-    /// Every backend produces identical output; this exists for testing and
-    /// benchmarking. An unavailable backend falls back to [`Backend::Scalar`].
+    /// Requests a specific compression backend instead of runtime detection.
+    ///
+    /// All available backends produce identical output. If the requested
+    /// backend is unavailable on this CPU, hashing silently falls back to
+    /// [`Backend::Scalar`]. Check [`Backend::is_available`] first if fallback
+    /// is not acceptable. This is useful for testing and controlled benchmarks.
     pub fn with_backend(mut self, backend: Backend) -> Self {
         self.backend = Some(backend);
         self
     }
 
     /// Hashes `password` with `salt`, writing the resulting tag into `out`.
-    /// `out.len()` determines the output tag length (must be >= 4 bytes).
+    ///
+    /// `salt` must contain 8..=u32::MAX bytes and `out` must contain at least
+    /// 4 bytes. The output length determines the tag length.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::SaltTooShort`], [`Error::TagTooShort`],
+    /// [`Error::InvalidParallelism`], [`Error::MemoryTooSmall`],
+    /// [`Error::InvalidIterations`], [`Error::InputTooLong`], or
+    /// [`Error::MemoryAllocationFailed`] when validation or allocation fails.
     pub fn hash_password_into(
         &self,
         password: &[u8],
@@ -101,6 +121,12 @@ impl Argon2 {
 
     /// Like [`Self::hash_password_into`], with the optional `secret` (key)
     /// and `associated_data` primary/secondary inputs from spec section 3.1.
+    /// Each input length must fit in `u32`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same validation and allocation errors as
+    /// [`Self::hash_password_into`].
     pub fn hash_password_into_with_secret(
         &self,
         password: &[u8],
@@ -157,7 +183,7 @@ mod tests {
     #[cfg(target_pointer_width = "64")]
     fn rejects_lengths_that_cannot_be_encoded_in_h0() {
         let too_long = u32::MAX as usize + 1;
-        assert_eq!(Params::RECOMMENDED.validate(too_long, 32), Err(Error::InputTooLong));
-        assert_eq!(Params::RECOMMENDED.validate(16, too_long), Err(Error::InputTooLong));
+        assert_eq!(Params::DEFAULT.validate(too_long, 32), Err(Error::InputTooLong));
+        assert_eq!(Params::DEFAULT.validate(16, too_long), Err(Error::InputTooLong));
     }
 }

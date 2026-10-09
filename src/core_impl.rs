@@ -10,7 +10,8 @@ use crate::{Algorithm, Error, Params, Version};
 const SYNC_POINTS: u32 = 4;
 
 impl Backend {
-    /// The fastest backend this CPU can execute.
+    /// The highest-priority supported backend: AVX2, SSSE3, SSE2, then scalar
+    /// on x86/x86-64, and scalar on other architectures.
     pub fn detect() -> Backend {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {

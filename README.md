@@ -93,10 +93,15 @@ The example uses RFC 9106's second recommended Argon2id profile:
 64 MiB, three passes, four lanes, and a 32-byte tag. Lanes are processed
 sequentially in this implementation; `parallelism` does not spawn worker threads.
 Tune costs for your deployment and threat model. `Argon2::default()` uses
-Argon2id `0x13` with 19 MiB, two passes, and four lanes; these are also not an
+the crate's `Params::DEFAULT`: Argon2id `0x13` with 19 MiB, two passes, and
+four lanes. This is a convenience configuration, not security advice or an
 RFC 9106 recommended profile. Memory is measured in KiB and rounded down to a
-multiple of `4 * parallelism` blocks. Requires Rust 1.88 or newer and the
-standard library; `no_std` builds are not supported.
+multiple of `4 * parallelism` blocks. Valid parameters require parallelism in
+`1..=2^24-1`, memory of at least `8 * parallelism` KiB, and one or more passes.
+Salt must be at least 8 bytes; tags must be at least 4 bytes. The input and tag
+lengths must fit the algorithm's length fields and platform allocation limits.
+Requires Rust 1.88 or newer and the standard library; `no_std` builds are not
+supported.
 
 ## Security Boundaries
 
@@ -345,10 +350,12 @@ The kernels retain vector state across block processing to reduce repeated
 reads of the predecessor block. The compiler chooses physical registers and
 spills; a register-resident design is not a guarantee of zero spills.
 
-Forcing a backend with `with_backend()` makes controlled comparisons possible.
-Measure optimized builds with representative parameters on the actual target
-hardware. SIMD capability, memory cost, allocator behavior, and CPU load affect
-results; this README does not promise a universal speedup. The crate uses a
+`with_backend()` requests a backend for reproducible comparisons; if it is not
+available on the current CPU, hashing falls back to scalar. Check
+`Backend::is_available()` first when fallback is unacceptable. Measure optimized
+builds with representative parameters on the actual target hardware. SIMD
+capability, memory cost, allocator behavior, and CPU load affect results; this
+README does not promise a universal speedup. The crate uses a
 normal initialized allocation, without platform-specific huge-page requests.
 ## License
 

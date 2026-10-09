@@ -5,6 +5,13 @@ use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A scalar or CPU-specific implementation of Argon2 block compression.
+///
+/// Backend variants are available only on architectures that support them.
+/// This public type supports reproducible backend selection and controlled
+/// benchmarks. Requests for an unavailable variant fall back to
+/// [`Backend::Scalar`]. New variants may be added as additional kernels ship.
+#[non_exhaustive]
 pub enum Backend {
     /// Portable Rust; the code path the Verus proof models.
     Scalar,

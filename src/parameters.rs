@@ -35,14 +35,18 @@ pub enum Version {
 }
 
 /// Tunable Argon2 parameters (spec section 3.1, "Secondary inputs").
+///
+/// Valid values require `parallelism` in `1..=2^24-1`, `memory_kib >= 8 *
+/// parallelism`, and `iterations >= 1`. Effective memory is rounded down to a
+/// multiple of `4 * parallelism` blocks.
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 #[derive(Debug, Clone, Copy)]
 pub struct Params {
-    /// Degree of parallelism `p`, 1..=2^24-1.
+    /// Degree of parallelism `p`, in `1..=2^24-1` lanes.
     pub parallelism: u32,
-    /// Memory size `m` in kibibytes, must be >= 8*p.
+    /// Requested memory size `m` in KiB, at least `8 * parallelism`.
     pub memory_kib: u32,
-    /// Number of passes over memory `t`, >= 1.
+    /// Number of passes over memory `t`, at least 1.
     pub iterations: u32,
 }
 
@@ -88,13 +92,23 @@ impl Params {
 
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// An error returned when parameters, input lengths, or allocation are invalid.
 pub enum Error {
+    /// Parallelism is zero or greater than `2^24 - 1`.
     InvalidParallelism,
+    /// Requested memory is less than 8 KiB per lane.
     MemoryTooSmall,
+    /// The number of passes is zero.
     InvalidIterations,
+    /// The salt contains fewer than 8 bytes.
     SaltTooShort,
+    /// The output tag buffer contains fewer than 4 bytes.
     TagTooShort,
+    /// An input or output length cannot be represented by the algorithm's
+    /// length fields or by the platform's allocation size type.
     InputTooLong,
+    /// The working-memory size is unrepresentable or fallible allocation
+    /// returned an error. This does not guarantee recovery from every OOM.
     MemoryAllocationFailed,
 }
 

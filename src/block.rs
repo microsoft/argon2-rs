@@ -11,31 +11,21 @@ use vstd::prelude::{verus_spec, verus_verify};
 /// this memory-hard algorithm performs across the whole working set.
 #[derive(Clone)]
 #[repr(align(64))]
-pub struct Block(pub [u64; 128]);
+pub(crate) struct Block(pub(crate) [u64; 128]);
 
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 impl Block {
-    pub const SIZE_BYTES: usize = 1024;
-    pub const SIZE_WORDS: usize = 128;
+    pub(crate) const SIZE_BYTES: usize = 1024;
+    pub(crate) const SIZE_WORDS: usize = 128;
 }
 
 impl Block {
-    pub fn zero() -> Self {
+    pub(crate) fn zero() -> Self {
         Block([0u64; 128])
     }
 
     #[inline(always)]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        assert_eq!(bytes.len(), Self::SIZE_BYTES);
-        let mut w = [0u64; 128];
-        for (i, word) in w.iter_mut().enumerate() {
-            *word = u64::from_le_bytes(bytes[i * 8..i * 8 + 8].try_into().unwrap());
-        }
-        Block(w)
-    }
-
-    #[inline(always)]
-    pub fn to_bytes(&self) -> [u8; Self::SIZE_BYTES] {
+    pub(crate) fn to_bytes(&self) -> [u8; Self::SIZE_BYTES] {
         let mut out = [0u8; Self::SIZE_BYTES];
         for (i, word) in self.0.iter().enumerate() {
             out[i * 8..i * 8 + 8].copy_from_slice(&word.to_le_bytes());
@@ -44,14 +34,7 @@ impl Block {
     }
 
     #[inline]
-    pub fn xor_with(&mut self, other: &Block) {
-        for i in 0..128 {
-            self.0[i] ^= other.0[i];
-        }
-    }
-
-    #[inline]
-    pub fn xor_with_slice(&mut self, other: &[u64]) {
+    pub(crate) fn xor_with_slice(&mut self, other: &[u64]) {
         for i in 0..128 {
             self.0[i] ^= other[i];
         }
@@ -71,7 +54,7 @@ fn permute(v: &mut [u64; 16]) {
 /// output `Z xor R`.
 #[inline(always)]
 #[cfg(test)]
-pub fn compress(x: &[u64], y: &[u64], out: &mut [u64]) {
+pub(crate) fn compress(x: &[u64], y: &[u64], out: &mut [u64]) {
     let x: &[u64; 128] = x.try_into().unwrap();
     let y: &[u64; 128] = y.try_into().unwrap();
     fill_block(x, y, out.try_into().unwrap(), false);
