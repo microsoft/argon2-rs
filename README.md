@@ -30,7 +30,7 @@ It is a Rust port of the [P-H-C/phc-winner-argon2](https://github.com/P-H-C/phc-
 reference implementation. The reference-derived portions use that source
 package's CC0 1.0 option. The original authors, source link, and license-choice
 notice are recorded in [NOTICE](NOTICE). This crate is separately distributed
-under the MIT License; see [LICENSE-MIT](LICENSE-MIT). It is not affiliated
+under the MIT License; see [LICENSE](LICENSE). It is not affiliated
 with or endorsed by the reference project's authors.
 
 Report suspected security defects privately as described in
