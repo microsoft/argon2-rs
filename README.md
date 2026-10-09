@@ -353,5 +353,5 @@ normal initialized allocation, without platform-specific huge-page requests.
 ## License
 
 This crate is licensed under the MIT License. The complete license text is in
-[LICENSE-MIT](LICENSE-MIT). The `0.1.0` package is prepared for crates.io, but
+[LICENSE](LICENSE). The `0.1.0` package is prepared for crates.io, but
 has not yet been published.

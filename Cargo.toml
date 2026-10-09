@@ -12,7 +12,7 @@ documentation = "https://docs.rs/argon2-verus"
 keywords = ["argon2", "password-hashing", "crypto", "kdf", "verus"]
 categories = ["cryptography"]
 readme = "README.md"
-include = ["/src/**", "/specs/**", "/proofs/**", "/verus/*.rs", "/verus/*.md", "/tools/verify.sh", "/tests/**", "/README.md", "/SECURITY.md", "/CHANGELOG.md", "/LICENSE-MIT", "/NOTICE", "/Cargo.toml", "/rustfmt.toml"]
+include = ["/src/**", "/specs/**", "/proofs/**", "/verus/*.rs", "/verus/*.md", "/tools/verify.sh", "/tests/**", "/README.md", "/SECURITY.md", "/CHANGELOG.md", "/LICENSE", "/NOTICE", "/Cargo.toml", "/rustfmt.toml"]
 
 [dependencies]
 # BLAKE2b, Argon2 and runtime CPU dispatch are implemented in this crate.
