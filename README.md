@@ -1,4 +1,4 @@
-# argon2-verus
+# argon2-rs
 
 A dependency-free Rust implementation of the algorithms and byte-level behavior
 of the [reference Argon2 implementation](https://github.com/P-H-C/phc-winner-argon2),
