@@ -4,7 +4,7 @@ Do not report suspected vulnerabilities in public issues or attach passwords,
 tokens, private keys, or other sensitive data.
 
 After private vulnerability reporting is enabled for the repository, use
-[GitHub's private vulnerability report](https://github.com/optiklab/argon2-verus/security/advisories/new).
+[GitHub's private vulnerability report](https://github.com/optiklab/argon2-rs/security/advisories/new).
 If that interface is unavailable, wait for a working private reporting channel;
 do not post exploit details publicly. Enabling and testing this channel is a
 pre-publication step in the release guide.
