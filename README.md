@@ -95,8 +95,8 @@ sequentially in this implementation; `parallelism` does not spawn worker threads
 Tune costs for your deployment and threat model. `Argon2::default()` uses
 Argon2id `0x13` with 19 MiB, two passes, and four lanes; these are also not an
 RFC 9106 recommended profile. Memory is measured in KiB and rounded down to a
-multiple of `4 * parallelism` blocks. Requires Rust 1.88 or newer.
-The crate uses `std`; its feature names do not imply `no_std` support.
+multiple of `4 * parallelism` blocks. Requires Rust 1.88 or newer and the
+standard library; `no_std` builds are not supported.
 
 ## Security Boundaries
 

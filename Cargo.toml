@@ -19,11 +19,6 @@ include = ["/src/**", "/specs/**", "/proofs/**", "/verus/*.rs", "/verus/*.md", "
 
 [dev-dependencies]
 
-[features]
-default = ["alloc"]
-alloc = []
-std = ["alloc"]
-
 [lib]
 name = "argon2_verus"
 path = "src/lib.rs"

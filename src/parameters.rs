@@ -113,8 +113,7 @@ impl ::core::fmt::Display for Error {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for Error {}
+impl ::std::error::Error for Error {}
 
 #[cfg(test)]
 mod tests {
