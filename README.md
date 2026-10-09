@@ -4,7 +4,6 @@ A dependency-free Rust implementation of the algorithms and byte-level behavior
 of the [reference Argon2 implementation](https://github.com/P-H-C/phc-winner-argon2),
 the password hash that won the Password Hashing Competition (PHC).
 
-
 **The scalar implementation has a machine-checked functional-correctness
 theorem.** [Verus](https://github.com/verus-lang/verus) checks the production 
 Rust code against separately written mathematical specifications. 
@@ -114,13 +113,11 @@ The crate uses `std`; its feature names do not imply `no_std` support.
   that every allocation failure is recoverable.
 - **Unsafe boundaries:** the crate root denies unsafe code except in
   [src/simd.rs](src/simd.rs) and [src/wipe.rs](src/wipe.rs). SIMD raw
-  loads/stores and CPU-feature calls have
-  safety obligations: live correctly sized references, in-bounds accesses,
-  valid store destinations, and appropriate runtime dispatch. Unaligned
-  `loadu`/`storeu` operations remove alignment requirements, not size or bounds
-  requirements. The wipe helper's two volatile stores also require live,
-  exclusively borrowed elements. Differential tests are evidence, not a proof
-  of these kernels or the wipe helper.
+  loads/stores and CPU-feature calls have safety obligations: live correctly 
+  sized references, in-bounds accesses, valid store destinations, 
+  and appropriate runtime dispatch. Unaligned `loadu`/`storeu` operations 
+  remove alignment requirements, not size or bounds requirements. The wipe helper's two volatile stores also require live, exclusively borrowed elements. 
+  Differential tests are evidence, not a proof of these kernels or the wipe helper.
 
 ## Mathematical proofs
 
