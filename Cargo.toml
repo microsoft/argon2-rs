@@ -1,0 +1,40 @@
+[package]
+name = "argon2-verus"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+publish = ["crates-io"]
+license = "MIT"
+description = "Dependency-free Argon2 password hashing with same-source Verus verification of selected core functions"
+repository = "https://github.com/microsoft/argon2-rs"
+homepage = "https://github.com/microsoft/argon2-rs"
+documentation = "https://docs.rs/argon2-verus"
+keywords = ["argon2", "password-hashing", "crypto", "kdf", "verus"]
+categories = ["cryptography"]
+readme = "README.md"
+include = ["/src/**", "/specs/**", "/proofs/**", "/verus/*.rs", "/verus/*.md", "/tools/verify.sh", "/tests/**", "/README.md", "/SECURITY.md", "/CHANGELOG.md", "/LICENSE", "/NOTICE", "/Cargo.toml", "/rustfmt.toml"]
+
+[dependencies]
+# BLAKE2b, Argon2 and runtime CPU dispatch are implemented in this crate.
+
+[dev-dependencies]
+
+[lib]
+name = "argon2_verus"
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(verus_keep_ghost)'] }
+
+[lints.clippy]
+# Keep proof-linked code in the explicit form consumed by Verus.
+manual_is_multiple_of = "allow"
+manual_memcpy = "allow"
+manual_range_contains = "allow"
+manual_rotate = "allow"
+needless_range_loop = "allow"
+ptr_arg = "allow"
+too_many_arguments = "allow"

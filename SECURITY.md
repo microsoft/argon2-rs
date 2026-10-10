@@ -12,3 +12,15 @@ please review the latest guidance for Microsoft repositories at
 [https://aka.ms/SECURITY.md](https://aka.ms/SECURITY.md).
 
 <!-- END MICROSOFT SECURITY.MD BLOCK -->
+
+## Argon2 Reporting Details
+
+Use the Microsoft reporting channel linked above. Include the package version
+or source revision, platform, CPU backend, parameters, a minimal non-sensitive
+reproducer, and expected versus actual behavior. Do not attach passwords,
+tokens, private keys, or other sensitive data.
+
+Proof-contract defects, incorrect hashes, unsafe memory accesses, unexpected
+side channels, and secret-lifetime defects are relevant reports. See the
+[README](README.md#security-boundaries) for the implementation's guarantees
+and limitations.

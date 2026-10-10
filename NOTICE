@@ -1,0 +1,21 @@
+argon2-verus
+============
+
+This crate is licensed under the MIT License. See LICENSE-MIT.
+
+This Rust port is based on the Argon2 reference implementation:
+
+  Copyright 2015
+  Daniel Dinu, Dmitry Khovratovich, Jean-Philippe Aumasson, and Samuel Neves
+
+  https://github.com/P-H-C/phc-winner-argon2
+
+The reference source package offers its work under either the Creative Commons
+CC0 1.0 Universal License/Waiver or the Apache License 2.0, at the user's
+option. For the reference-derived portions of this Rust port, we select the
+CC0 1.0 option. This notice records the source and license choice; CC0 does not
+waive patent or trademark rights.
+
+Argon2 won the Password Hashing Competition in 2015 and is specified in
+RFC 9106. This crate is not affiliated with or endorsed by the reference
+implementation's authors.
