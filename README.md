@@ -4,27 +4,13 @@
 [![Minimum Rust version](https://img.shields.io/badge/rustc-1.88%2B-blue.svg)](https://github.com/microsoft/argon2-rs/blob/main/Cargo.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/microsoft/argon2-rs/blob/main/LICENSE)
 
-A dependency-free Rust implementation of the algorithms and byte-level behavior
-of the [reference Argon2 implementation](https://github.com/P-H-C/phc-winner-argon2),
-the password hash that won the Password Hashing Competition (PHC).
+A dependency-free Rust implementation of the password hasher [Argon2 algorithm](https://github.com/P-H-C/phc-winner-argon2). It reproduces byte-level behavior of the reference C++ implementation that won the Password Hashing Competition (PHC).
 
-**The scalar implementation has a machine-checked functional-correctness
-theorem.** [Verus](https://github.com/verus-lang/verus) checks the production 
-Rust code against separately written mathematical specifications. 
-For API-accepted inputs and parameters, if the forced-scalar caller returns `Ok(())`, 
-its output equals the tag computed by the whole-hash model derived from the Argon2 
-specification. The caller proof  passes 200 verification obligations; 
-all 19 same-source proof roots pass at `--no-cheating --rlimit 30`.
+It implements the existing Argon2 spec and contains an in-tree implementation of required BLAKE2b avoiding external dependencies; combines runtime-dispatched SIMD for performance with same-source [Verus](https://github.com/verus-lang/verus) verification of scalar Argon2, from H0 through the successful returned result (aka tag).
 
-This proves that the checked scalar caller agrees with that mathematical model.
-Thus, the crate combines runtime-dispatched SIMD with same-source
-[Verus](https://github.com/verus-lang/verus) verification of scalar Argon2,
-from H0 through the successful returned result (aka tag). BLAKE2b and the Argon2 core are
-implemented locally; the SIMD paths are not covered by that theorem.
+Proven machine-checked functional-correctness theorem stated as: for API-accepted inputs and parameters, if the forced-scalar caller is successful (aka returns `Ok(())`), its output equals the tag computed by the whole-hash model derived from the Argon2 specification.
 
-It does not by itself prove that the model perfectly captures the RFC; that
-still needs independent review. The theorem also excludes SIMD and automatic
-backend selection.
+The caller proof  passes 200 verification obligations; all 19 same-source proof roots pass at `--no-cheating --rlimit 30`. SIMD paths are not covered by that theorem.
 
 ## Attribution And Security Reporting
 
