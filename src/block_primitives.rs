@@ -3,7 +3,7 @@
 //!
 //! These are the canonical executable bodies used by both ordinary Rust
 //! builds and Verus. Verus checks these leaves under their contracts; it does
-//! not verify the complete 1024-byte compression function G or SIMD kernels.
+//! compose with the full scalar G/caller proof; SIMD kernels remain outside it.
 
 #[cfg(verus_keep_ghost)]
 use crate::specs;

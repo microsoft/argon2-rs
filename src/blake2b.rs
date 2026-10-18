@@ -2,7 +2,7 @@
 //!
 //! Only the subset needed by Argon2 is exposed: a one-shot hash of up to
 //! 64 bytes (`blake2b`), and the Argon2 variable-length hash `H'` built on
-//! top of it (`blake2b_long`), as specified in section 3.2 of the Argon2
+//! top of it (`blake2b_long`), as specified in section 3.3 of RFC 9106
 //! spec ("Variable-length hash function").
 
 use crate::blake2b_tables::initial_h;
@@ -97,7 +97,7 @@ impl Blake2b {
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires 1 <= out_len <= 64,
         model::blake2b_parts_prefix(parts@, parts@.len()).len() <= u128::MAX as int,
-    ensures result@ == model::blake2b_stream_digest(
+    ensures result@ == crate::specs::digest::blake2b_stream_digest(
         specs::blake2b_initial_h(out_len as nat), 0u128,
         model::blake2b_parts_prefix(parts@, parts@.len()),
     ),
@@ -109,7 +109,7 @@ pub fn blake2b(out_len: usize, parts: &[&[u8]]) -> [u8; 64] {
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires 1 <= out_len <= 64,
         prefix@.len() + model::blake2b_parts_prefix(parts@, parts@.len()).len() <= u128::MAX as int,
-    ensures result@ == model::blake2b_stream_digest(
+    ensures result@ == crate::specs::digest::blake2b_stream_digest(
         specs::blake2b_initial_h(out_len as nat), 0u128,
         prefix@ + model::blake2b_parts_prefix(parts@, parts@.len()),
     ),
@@ -188,13 +188,13 @@ fn blake2b_prefixed(out_len: usize, prefix: &[u8], parts: &[&[u8]]) -> [u8; 64] 
     h.finalize()
 }
 
-/// Argon2's variable-length hash function H' (spec section 3.2), for
+/// Argon2's variable-length hash function H' (RFC 9106 section 3.3), for
 /// arbitrary `out_len`, built from BLAKE2b restricted to <=64-byte outputs.
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires 1 <= out_len <= u32::MAX as usize,
         out_len <= isize::MAX as usize,
         model::blake2b_parts_prefix(parts@, parts@.len()).len() + 4 <= u128::MAX as int,
-    ensures result@ == long_model::h_prime(
+    ensures result@ == crate::specs::h_prime::h_prime(
         out_len as nat, model::blake2b_parts_prefix(parts@, parts@.len()),
     ), result@.len() == out_len,
 ))]
@@ -205,7 +205,7 @@ pub fn blake2b_long(out_len: usize, parts: &[&[u8]]) -> Vec<u8> {
         let full = crate::wipe::Bytes(blake2b_prefixed(out_len, &len_le, parts));
         #[cfg(verus_keep_ghost)]
         proof! {
-            reveal(long_model::h_prime);
+            reveal(crate::specs::h_prime::h_prime);
         }
         let mut out = crate::wipe::ByteVec(Vec::with_capacity(out_len));
         out.0.extend_from_slice(&full.0[..out_len]);
@@ -223,9 +223,9 @@ pub fn blake2b_long(out_len: usize, parts: &[&[u8]]) -> Vec<u8> {
     }
     #[cfg(verus_keep_ghost)]
     proof! {
-        reveal(long_model::chain);
-        reveal(long_model::output_prefix);
-        assert(long_model::output_prefix(seed, 1) =~= seed.take(32));
+        reveal(crate::specs::h_prime::chain);
+        reveal(crate::specs::h_prime::output_prefix);
+        assert(crate::specs::h_prime::output_prefix(seed, 1) =~= seed.take(32));
     }
 
     let mut remaining = out_len - 32;
@@ -235,15 +235,15 @@ pub fn blake2b_long(out_len: usize, parts: &[&[u8]]) -> Vec<u8> {
             out_len <= isize::MAX as usize,
             model::blake2b_parts_prefix(parts@, parts@.len()).len() + 4 <= u128::MAX as int,
             seed.len() == 64,
-            seed == model::blake2b_stream_digest(specs::blake2b_initial_h(64), 0u128,
-                long_model::length_prefix(out_len as u32)
+            seed == crate::specs::digest::blake2b_stream_digest(specs::blake2b_initial_h(64), 0u128,
+                crate::specs::h_prime::length_prefix(out_len as u32)
                     + model::blake2b_parts_prefix(parts@, parts@.len())),
             1 <= completed,
             32 < remaining <= out_len,
             out.0.len() as int == 32 * completed,
             out.0.len() as int + remaining as int == out_len as int,
-            out.0@ == long_model::output_prefix(seed, completed),
-            v.0@ == long_model::chain(seed, (completed - 1) as nat),
+            out.0@ == crate::specs::h_prime::output_prefix(seed, completed),
+            v.0@ == crate::specs::h_prime::chain(seed, (completed - 1) as nat),
         decreases remaining,
     ))]
     while remaining > 64 {
@@ -281,13 +281,13 @@ pub fn blake2b_long(out_len: usize, parts: &[&[u8]]) -> Vec<u8> {
     debug_assert!(out.0.len() == out_len);
     #[cfg(verus_keep_ghost)]
     proof! {
-        reveal(long_model::h_prime);
+        reveal(crate::specs::h_prime::h_prime);
     }
     out.into_inner()
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures result@ == long_model::length_prefix(length),
+    ensures result@ == crate::specs::h_prime::length_prefix(length),
 ))]
 pub(crate) fn h_prime_length(length: u32) -> [u8; 4] {
     [length as u8, (length >> 8) as u8, (length >> 16) as u8, (length >> 24) as u8]

@@ -8,7 +8,6 @@ use crate::specs;
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result@ == specs::xor_words(prev@, reference@),
 ))]
@@ -22,6 +21,7 @@ fn xor_inputs(prev: &[u64; 128], reference: &[u64; 128]) -> [u64; 128] {
                 } else {
                     r@[i] == 0
                 },
+        decreases 128 - index,
     ))]
     for index in 0..128 {
         r[index] = prev[index] ^ reference[index];
@@ -40,10 +40,10 @@ fn prepare_tmp(r: &[u64; 128], old_next: &[u64; 128], with_xor: bool) -> [u64; 1
     let mut tmp = *r;
     if with_xor {
         #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-        #[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant
-                tmp@ == specs::xor_words_prefix(r@, old_next@, index as int),
+                tmp@ == crate::invariant_specs::xor_words_prefix(r@, old_next@, index as int),
+            decreases 128 - index,
         ))]
         for index in 0..128 {
             tmp[index] ^= old_next[index];
@@ -53,16 +53,18 @@ fn prepare_tmp(r: &[u64; 128], old_next: &[u64; 128], with_xor: bool) -> [u64; 1
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(
-    ensures final(words)@ == specs::permute_columns_prefix(
-        specs::permute_rows_prefix(old(words)@, 8), 8),
+    ensures final(words)@ == specs::permute_columns(specs::permute_rows(old(words)@)),
 ))]
 fn permute_block(words: &mut [u64; 128]) {
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::invariant_specs::complete_rows(words@); }
     block_g::permute_rows(words);
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::invariant_specs::complete_columns(words@); }
     block_g_columns::permute_columns(words);
 }
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 #[cfg_attr(verus_keep_ghost, verus_spec(
     ensures final(next)@ == specs::xor_words(tmp@, transformed@),
 ))]
@@ -75,6 +77,7 @@ fn xor_output(tmp: &[u64; 128], transformed: &[u64; 128], next: &mut [u64; 128])
                 } else {
                     next@[i] == old(next)@[i]
                 },
+        decreases 128 - index,
     ))]
     for index in 0..128 {
         next[index] = tmp[index] ^ transformed[index];

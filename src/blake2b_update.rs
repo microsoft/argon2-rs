@@ -33,7 +33,7 @@ use vstd::prelude::*;
         ),
         specs::blake2b_finalize_result(
             final(h)@, *final(counter), final(buffer)@, *final(buffered_len) as nat,
-        ) == model::blake2b_stream_digest(
+        ) == crate::specs::digest::blake2b_stream_digest(
             old(h)@, *old(counter), old(buffer)@.take(*old(buffered_len) as int) + old(data)@,
         ),
 ))]

@@ -6,7 +6,7 @@
 //!
 //! See `README.md` for the security rationale, verification status, and
 //! test methodology (known-answer tests plus same-source Verus proofs of
-//! scalar primitives, complete block G, and one BLAKE2b block transition).
+//! scalar primitives, complete block G, BLAKE2b and the successful scalar caller).
 //!
 //! BLAKE2b and the Argon2 core are implemented locally. SIMD backends share
 //! reference indexing, and selected scalar/indexing functions have same-source

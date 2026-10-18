@@ -9,17 +9,17 @@ use vstd::prelude::*;
 use crate::blake2b_compress::compress_block;
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 #[cfg_attr(verus_keep_ghost, verus_spec(
     requires start + data.len() <= 128,
-    ensures final(buffer)@ == specs::blake2b_buffer_append(
+    ensures final(buffer)@ == crate::invariant_specs::blake2b_buffer_append(
         old(buffer)@, start as int, data@),
 ))]
 pub(crate) fn append(buffer: &mut [u8; 128], start: usize, data: &[u8]) {
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant
-            buffer@ == specs::blake2b_buffer_append_prefix(
+            buffer@ == crate::invariant_specs::blake2b_buffer_append_prefix(
                 old(buffer)@, start as int, data@, index as int),
+        decreases data.len() - index,
     ))]
     for index in 0..data.len() {
         buffer[start + index] = data[index];
@@ -43,17 +43,17 @@ pub(crate) fn flush_full_buffer(h: &mut [u64; 8], counter: u128, buffer: &[u8; 1
     requires *old(buffered_len) <= 128, input.len() > 0,
         *old(counter) as int + *old(buffered_len) as int + input.len() as int <= u128::MAX as int,
         *old(buffered_len) < 128 || *old(counter) <= u128::MAX - 128,
-    ensures final(h)@ == specs::blake2b_update_step(
+    ensures final(h)@ == crate::invariant_specs::blake2b_update_step(
         old(h)@, *old(counter), old(buffer)@, *old(buffered_len) as nat, input@).0,
-        *final(counter) == specs::blake2b_update_step(
+        *final(counter) == crate::invariant_specs::blake2b_update_step(
             old(h)@, *old(counter), old(buffer)@, *old(buffered_len) as nat, input@).1,
-        final(buffer)@ == specs::blake2b_update_step(
+        final(buffer)@ == crate::invariant_specs::blake2b_update_step(
             old(h)@, *old(counter), old(buffer)@, *old(buffered_len) as nat, input@).2,
-        *final(buffered_len) as nat == specs::blake2b_update_step(
+        *final(buffered_len) as nat == crate::invariant_specs::blake2b_update_step(
             old(h)@, *old(counter), old(buffer)@, *old(buffered_len) as nat, input@).3,
-        result as nat == specs::blake2b_update_step(
+        result as nat == crate::invariant_specs::blake2b_update_step(
             old(h)@, *old(counter), old(buffer)@, *old(buffered_len) as nat, input@).4,
-        result as nat == specs::blake2b_update_take(
+        result as nat == crate::invariant_specs::blake2b_update_take(
             if *old(buffered_len) == 128 { 0nat } else { *old(buffered_len) as nat }, input@.len()),
         0 < result <= input.len(), *final(buffered_len) <= 128,
         *final(counter) as int + *final(buffered_len) as int
@@ -68,7 +68,7 @@ pub(crate) fn update_step(
 ) -> usize {
     #[cfg(verus_keep_ghost)]
     proof! {
-        specs::blake2b_update_step_progress(h@, *counter, buffer@, *buffered_len as nat, input@);
+        crate::invariant_specs::blake2b_update_step_progress(h@, *counter, buffer@, *buffered_len as nat, input@);
     }
     if *buffered_len == 128 {
         *counter = flush_full_buffer(h, *counter, buffer);
@@ -82,7 +82,6 @@ pub(crate) fn update_step(
 }
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires buffered_len <= 128,
     ensures result@ == specs::blake2b_pad_final_block(buffer@, buffered_len as nat),
@@ -99,6 +98,7 @@ pub(crate) fn pad_final_block(buffer: &[u8; 128], buffered_len: usize) -> [u8; 1
                 } else {
                     padded@[i] == buffer@[i]
                 },
+        decreases 128 - index,
     ))]
     for index in buffered_len..128 {
         padded[index] = 0;
@@ -107,7 +107,6 @@ pub(crate) fn pad_final_block(buffer: &[u8; 128], buffered_len: usize) -> [u8; 1
 }
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires buffered_len <= 128,
         counter as int + buffered_len as int <= u128::MAX as int,
@@ -133,6 +132,7 @@ pub(crate) fn finalize_state(
                 } else {
                     output@[i] == 0
                 },
+        decreases 64 - index,
     ))]
     for index in 0..64 {
         output[index] = (state.0[index / 8] >> (8 * (index % 8))) as u8;

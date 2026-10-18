@@ -116,8 +116,8 @@ Validation covers three distinct properties:
    and in-place changes. `Drop`, volatile writes, compiler-generated copies,
    SIMD and machine-code timing remain outside those functional theorems.
 
-Completed on x86-64 with Rust 1.93.0 and the existing local Verus/vstd review
-build `0.2026.10.07.89f8d65.dirty`:
+The runtime validation completed using Rust 1.93.0 on x86-64 and clean upstream Verus commit
+`1888846b29c587f56d2a4c482e4b75ecd86f8543` (which includes merged PR #3094):
 
 ```sh
 cargo test --offline --locked --release --lib --test kat --test spec_contract \
@@ -125,7 +125,8 @@ cargo test --offline --locked --release --lib --test kat --test spec_contract \
 cargo test --offline --locked --doc
 cargo clippy --offline --locked --all-targets -- -D warnings
 cargo fmt --all -- --check
-VERUS_BIN=/path/to/compatible/verus bash tools/verify.sh
+cargo verus verify --manifest-path verus/Cargo.toml --locked \
+  --fwd-verus-args-to roots -- --no-cheating --rlimit 30
 git diff --check
 ```
 
@@ -134,9 +135,10 @@ git diff --check
   environment. All available scalar, SSE2, SSSE3 and AVX2 backends were tested.
 - Doctests: **1 passed, 0 failed**.
 - Clippy, formatting and patch-whitespace checks: passed.
-- All **19 Verus roots**: passed with zero errors. The whole-scalar caller
-  root reports **201 verified, 0 errors**. The local vstd allocation contract
-  remains a disclosed trusted dependency, not an allocator proof.
+- The consolidated Cargo-Verus application proof passes **212 verified,
+  0 errors**, preserving the old roots' coverage. The upstream vstd
+  allocation contract remains trusted, not an allocator implementation
+  proof; no local patch is required.
 - Bounded inspection of the optimized non-test library confirms that the
   BLAKE2b update stack allocation is now `0x38` rather than the original
   `0x2c8` bytes. Input bytes are copied directly into the borrowed buffer, not

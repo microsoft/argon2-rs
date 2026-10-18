@@ -102,6 +102,10 @@ mod tests {
     #[test]
     fn owners_wipe_on_return_and_unwind() {
         for panic in [false, true] {
+            if panic && !cfg!(panic = "unwind") {
+                eprintln!("skipping unwinding case: this build aborts on panic");
+                continue;
+            }
             let (result, events) = super::observe(|| {
                 let _bytes = super::Bytes([0xa5; 31]);
                 let _words = super::Words([u64::MAX; 17]);
@@ -140,7 +144,8 @@ mod tests {
 
     #[test]
     fn hashing_wipes_temporary_owners_on_each_backend() {
-        use crate::{Algorithm, Argon2, Backend, Params, Version};
+        use crate::core_backend::Backend;
+        use crate::{Algorithm, Params, Version};
         let mut backends = vec![Backend::Scalar];
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         backends.extend([Backend::Sse2, Backend::Ssse3, Backend::Avx2]);
@@ -150,13 +155,17 @@ mod tests {
             }
             let (result, events) = super::observe(|| {
                 let mut tag = [0; 32];
-                Argon2::new(
+                crate::core_impl::hash_into_with_backend(
+                    backend,
                     Algorithm::Argon2id,
                     Version::V0x13,
-                    Params { parallelism: 1, memory_kib: 8, iterations: 1 },
+                    &Params { parallelism: 1, memory_kib: 8, iterations: 1 },
+                    b"password",
+                    b"saltsalt",
+                    &[],
+                    &[],
+                    &mut tag,
                 )
-                .with_backend(backend)
-                .hash_password_into(b"password", b"saltsalt", &mut tag)
                 .unwrap();
                 assert_ne!(tag, [0; 32]);
             });

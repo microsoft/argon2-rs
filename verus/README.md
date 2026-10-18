@@ -1,284 +1,113 @@
-# Same-Source Verus Proofs
+# Same-source Cargo-Verus verification
 
-The verifier reads canonical ordinary Rust executable leaves directly. Cargo
-compiles integrated leaves from the same bodies, without ghost-only contracts
-and proof blocks. This same-source layout requires no executable export step.
+This non-publishable proof package imports the actual scalar implementation
+through [lib.rs](lib.rs). It replaces the 19 overlapping standalone roots.
+The runtime crate remains dependency-free and retains Rust 1.88 support.
+Edge uses the identical proof package without changing its GN/CXX build.
+Cargo excludes nested packages from the runtime crate archive. Run these
+verification commands from a repository checkout, not the crates.io archive.
+The archive retains the annotated runtime source, specs and proof helpers.
 
-| Proof root | Imported executable source | Scope |
-| --- | --- | --- |
-| [shared.rs](shared.rs) | [../src/core_primitives.rs](../src/core_primitives.rs), [../src/block_primitives.rs](../src/block_primitives.rs) | All 11 scalar and core executable leaves; supporting lemmas in [../proofs/geometry.rs](../proofs/geometry.rs). |
-| [block_verified.rs](block_verified.rs) | [../src/block_primitives.rs](../src/block_primitives.rs) | `blamka`, `rotr64`, `gb`, `permute`. |
-| [block_g_rows_verified.rs](block_g_rows_verified.rs) | [../src/block_g.rs](../src/block_g.rs), [../src/block_primitives.rs](../src/block_primitives.rs) | The production row-wise permutation pass over the eight 16-word rows. |
-| [block_g_column_verified.rs](block_g_column_verified.rs) | [../src/block_g_column.rs](../src/block_g_column.rs), [../src/block_primitives.rs](../src/block_primitives.rs) | Gather, permute, and scatter one selected 16-word column. |
-| [block_g_columns_verified.rs](block_g_columns_verified.rs) | [../src/block_g_columns.rs](../src/block_g_columns.rs) | The production loop applying the one-column helper to all eight columns. |
-| [block_g_fill_verified.rs](block_g_fill_verified.rs) | [../src/block_g_fill.rs](../src/block_g_fill.rs), row/column helpers | Full scalar 128-word G composition: input XOR, row P, column P, optional old-destination XOR, and output XOR. |
-| [blake2b_compress_verified.rs](blake2b_compress_verified.rs) | [../src/blake2b_compress.rs](../src/blake2b_compress.rs), [../src/blake2b_tables.rs](../src/blake2b_tables.rs) | One BLAKE2b 128-byte block-to-chaining-state transition, including little-endian decode, IV/counter/final flag, 12 rounds, and state fold. |
-| [blake2b_tables_verified.rs](blake2b_tables_verified.rs) | [../src/blake2b_tables.rs](../src/blake2b_tables.rs) | Production IV/SIGMA and unkeyed digest-length initialization agree with the model. |
-| [blake2b_buffer_verified.rs](blake2b_buffer_verified.rs) | [../src/blake2b_buffer.rs](../src/blake2b_buffer.rs), compression helpers | Buffer append, full-buffer flush/update step, final padding, and digest serialization. |
-| [blake2b_update_verified.rs](blake2b_update_verified.rs) | [../src/blake2b_update.rs](../src/blake2b_update.rs), [../proofs/blake2b_update.rs](../proofs/blake2b_update.rs), buffer helpers | Production update establishes block-prefix semantics and a modeled final digest; binary partition composition and digest independence are proved. |
-| [blake2b_api_verified.rs](blake2b_api_verified.rs) | [../src/blake2b.rs](../src/blake2b.rs), [../proofs/blake2b_long.rs](../proofs/blake2b_long.rs), streaming model/helpers | Real public methods, arbitrary multipart/prefixed wrappers, and both H-prime branches agree with their models; lengths, bounds and loop termination are checked under explicit preconditions. |
-| [initial_hash_verified.rs](initial_hash_verified.rs) | [../src/initial_hash.rs](../src/initial_hash.rs), [../src/parameters.rs](../src/parameters.rs), [../proofs/initial_hash.rs](../proofs/initial_hash.rs), BLAKE2b helpers | Raw H0 serialization, real enum/Params mapping and checked accepted-input-to-H0 composition. |
-| [parameters_verified.rs](parameters_verified.rs) | [../src/parameters.rs](../src/parameters.rs), core/geometry helpers | Parameter/salt/tag validation returns Ok exactly for its accepted domain; guarded arithmetic is checked. |
-| [memory_initialization_verified.rs](memory_initialization_verified.rs) | [../src/memory_initialization.rs](../src/memory_initialization.rs), [../proofs/memory_initialization.rs](../proofs/memory_initialization.rs), H-prime helpers | Exact H0/LE32 column/lane seed, H-prime(1024) decoding, in-bounds flat placement and real nested initialization loops; allocation/Memory wrapper/caller discharge excluded. |
-| [memory_owner_verified.rs](memory_owner_verified.rs) | [../src/memory.rs](../src/memory.rs), geometry/initialization/G/BLAKE2b helpers | `Memory::zeroed_initialized` validates parameters, salt/tag lengths and native-size representability internally, then composes geometry, successful exact-length zeroed allocation and first-block initialization with no caller preconditions. Depends on the local trusted vstd `try_reserve_exact` spec; allocator implementation, general accessors and full hash body remain outside the proof. |
-| [core_address_verified.rs](core_address_verified.rs) | [../src/core_address.rs](../src/core_address.rs), [../src/block_g_fill.rs](../src/block_g_fill.rs) | The real counter increment and two scalar G calls compose to the generated address-block model, under a non-overflow precondition; per-segment scheduling and traversal remain outside. |
-| [core_segment_verified.rs](core_segment_verified.rs) | [../src/core_segment.rs](../src/core_segment.rs), address/indexing/arena helpers | The real shared walker and scalar callback yield exact segment/traversal-prefix arena contents, with both addressing modes and all loop invariants. |
-| [core_final_verified.rs](core_final_verified.rs) | [../src/core_final.rs](../src/core_final.rs), [../src/memory.rs](../src/memory.rs), H-prime API | Final lane-tail XOR, little-endian serialization and H-prime application compose to the exact `scalar_tag` model under representable arena/output bounds. |
-| [core_scalar_caller_verified.rs](core_scalar_caller_verified.rs) | [../src/core_scalar_caller.rs](../src/core_scalar_caller.rs) and all scalar proof helpers | For accepted inputs, the real checked H0/arena/traversal/finalization/output-copy caller proves `Ok(()) ==> out == scalar_tag_model`; successful allocation and allocator correctness are separate. |
+## Pinned upstream toolchain
 
-Definitions reside in [../specs/mod.rs](../specs/mod.rs), imported as `specs`
-by both roots. Contracts use `cfg_attr(verus_keep_ghost, verus_spec(...))`;
-ghost imports and helper invocations use `cfg(verus_keep_ghost)`. There is
-only one canonical body for each executable leaf.
+Use Verus commit `1888846b29c587f56d2a4c482e4b75ecd86f8543`, with its matching
+Rust 1.99.1, vstd and Z3 4.16.0. [Cargo.toml](Cargo.toml) pins vstd to that
+same upstream commit; [Cargo.lock](Cargo.lock) pins its dependencies.
+[rust-toolchain.toml](rust-toolchain.toml) applies only inside this package.
 
-## Running
+The `Vec::try_reserve_exact` specification was merged upstream in
+[Verus PR #3094](https://github.com/verus-lang/verus/pull/3094). No local
+vstd patch is required. Like other standard-library specifications, the
+allocation contract is still a trusted boundary; it does not verify the
+allocator implementation or guarantee successful allocation.
 
-Obtain a compatible [Verus release or source build](https://github.com/verus-lang/verus)
-and its matching vstd, Rust toolchain, and Z3 solver. The original local baseline
-uses Verus `0.2026.09.23.4d4a480` with its `1.98.1` toolchain and Z3 `4.16.0`.
-Use the solver version pinned by your Verus build; substituting versions can
-cause parser failures rather than a meaningful verification result.
-
-From the crate root, set `VERUS` to the verifier executable:
+Follow the pinned upstream [build instructions](https://github.com/verus-lang/verus/blob/1888846b29c587f56d2a4c482e4b75ecd86f8543/BUILD.md).
+For a source build, from its `source` directory:
 
 ```sh
-VERUS=/path/to/verus
-"$VERUS" verus/shared.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/block_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/block_g_rows_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/block_g_column_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/block_g_columns_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/block_g_fill_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/blake2b_compress_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/blake2b_tables_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/blake2b_buffer_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/blake2b_update_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/blake2b_api_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/initial_hash_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/parameters_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/memory_initialization_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/memory_owner_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/core_address_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/core_segment_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/core_final_verified.rs --crate-type lib --no-cheating --rlimit 30
-"$VERUS" verus/core_scalar_caller_verified.rs --crate-type lib --no-cheating --rlimit 30
+./tools/get-z3.sh
+cargo build --release
+cargo run --release -p cargo-verus -- build --release --manifest-path vstd/Cargo.toml
 ```
 
-The matching source revision is
-`4d4a4800490d53abe7433ed89b33ae855efce59e` in the Verus repository.
-If a compatible binary release is unavailable, build that revision following
-its BUILD.md with the pinned Rust toolchain and matching Z3, then set `VERUS`
-to the resulting executable. Do not infer a downloadable release URL from the
-version string alone. Build Verus in a separate checkout and shell so its Cargo
-wrapper does not replace the ordinary toolchain used for this crate.
-The original `4d4a480` vstd lacks `Vec::try_reserve_exact`, so it cannot verify
-the annotated constructor. The current constructor result was checked with a
-separate local Verus source worktree at `89f8d65` and its rebuilt vstd
-(`0.2026.10.07.89f8d65.dirty`), which contains the proposed mapping. That mapping
-is unmerged and trusted; a passing `--no-cheating` application gate does not
-prove the allocator implementation.
-The current strict gate reports **62**, **8**, **12**, **12**, **14**, **22**,
-**19**, and **8 verified, 0 errors**, respectively, for the combined, scalar,
-row, one-column, eight-column, full-G, BLAKE2b-block, and BLAKE2b-table roots.
-The BLAKE2b buffer/update-step/finalize root reports **24 verified, 0 errors**.
-The production update/streaming-composition root reports **42 verified, 0 errors**.
-The public multipart/prefixed API and H-prime root reports **56 verified, 0 errors**.
-The checked H0/parameter-adapter root reports **121 verified, 0 errors**.
-The parameter-validation root reports **63 verified, 0 errors**. These roots
-import existing core/geometry proofs and overlap; counts are not new coverage totals.
-The seed/block/flat-arena initialization root reports **70 verified, 0 errors**.
-The real owner/constructor root reports **157 verified, 0 errors** including
-imported G/core/BLAKE2b helpers, with the local vstd mapping. It proves the
-parameter-checking geometry/allocation/initialization adapter and the constructor's
-exact length and zero contents on `Ok`, not allocation success or allocator
-correctness. The real scalar caller root composes the adapter with the proved
-traversal and final-tag helpers; SIMD and automatic backend paths remain outside.
-The real scalar callback now uses verified gather/G/scatter. Its contract
-updates exactly the destination block and preserves every other arena word;
-general borrowed accessors remain unverified.
-This uses owned block copies rather than an unsupported slice-to-array conversion.
-The geometry identity assertion adds one check
-to importing roots; these are overlapping obligations, not coverage totals.
-The parts-prefix definition and bound lemma add two obligations to roots importing
-the streaming proof module. The API root additionally uses ghost-only `cfg_eval`
-to expand nested contracts before `verus_verify`; ordinary Rust erases those attrs.
-The initialization helper adds two obligations to each root importing the tables.
-The shared root includes two production selector contracts. The base selector
-proves `prev`/`curr` are in bounds and distinct before the data-dependent read;
-the reference selector proves `ref` is in bounds and `ref != curr` after
-`pseudo_rand` is available. The runtime debug assertion remains as a guard.
-Both selectors additionally prove exact predecessor/reference-position model
-agreement, not only bounds and current-block exclusion.
-The address root reports **31 verified, 0 errors**: it proves exact address-input
-field encoding with a zero counter/tail, the production
-counter increment (under `counter < u64::MAX`) and composes two real scalar G
-calls into the address-block transition model. The same-source `next_addresses`
-helpers are wired into the walker. Initialization at index 0/2, per-index
-regeneration/word selection, canonical destination-independent address blocks,
-and the successor counter relation are proved. The scheduling helper discharges
-counter overflow internally from its u32-index invariant. The segment root
-reports **181 verified, 0 errors** and establishes that invariant throughout
-the real loop, exact predecessor/reference selection, callback preconditions
-and exact final arena equality with `segment_prefix`. Its scalar adapter proves
-the callback contract using the real arena/G implementation. The real scalar
-lane/slice/pass helpers additionally prove exact `traversal_prefix` final arena
-contents. Full caller discharge and tag finalization remain unproved; SIMD
-callbacks are not verified.
-The finalization root reports **167 verified, 0 errors** for the actual
-wordwise XOR of every lane's last block, exact little-endian byte output, and
-composition with the already-proved H-prime API into `scalar_tag`.
-The whole scalar caller root reports **201 verified, 0 errors**: for accepted
-inputs, `hash_into_scalar` proves `Ok(()) ==> out == scalar_tag_model`, with
-`checked_h0`, successful arena construction, traversal, finalization and copy
-preconditions discharged internally. The production `Backend::Scalar` branch
-delegates to this helper. This is not a guarantee that the operation returns
-`Ok`: allocation/execution may fail. The trusted local vstd allocation
-specification and independent RFC/model fidelity review remain explicit
-assumptions; SIMD and automatic backend selection are outside the theorem.
-All 19 roots were revalidated after the temporary-lifetime remediation.
-The same production bodies now mutate BLAKE2b state in place and use explicit
-cleanup owners. The imported cleanup module adds the functional
-`ByteVec::into_inner` obligation. Destructors, volatile writes, compiler
-copies and register erasure remain outside these functional proofs.
-The shared step-progress lemma adds one obligation to every root, not new G
-or whole-hash coverage.
-Counts are verifier obligations, not function or coverage counts.
-Require a successful exit and a positive verification summary with zero errors
-for each root. Compile-only output or expansion output is not proof evidence.
+Put that build's `target-verus/release` directory on `PATH`, so both `verus`
+and `cargo-verus` come from the pinned build. Do not replace the ordinary
+project Rust toolchain with the verifier's toolchain.
 
-Run ordinary Cargo separately:
+## Commands
+
+From the standalone or Edge Argon2 component root:
 
 ```sh
-cargo test --test kat
-cargo test --doc
+cargo verus verify --manifest-path verus/Cargo.toml --locked
 ```
 
-Do not set `verus_keep_ghost` for normal Cargo builds. If building Verus from
-source, keep its activated build shell separate: activation can replace the
-ordinary Cargo command with Verus's build wrapper.
+From this `verus` directory, simply use `cargo verus verify --locked`.
+The explicit manifest layout is intentional: ordinary `cargo build/test`
+must not acquire a verification dependency or a higher MSRV.
+The BLAKE2b `g_values` proof retains the established solver budget of 30
+through a local verifier attribute; other proofs use the command's budget.
+This lets the plain Cargo command succeed without a global resource flag.
 
-## Returned-Tag Target
+Strict acceptance:
 
-The agreed first hash-level target is `Backend::Scalar`, `Version::V0x13`, and
-all three algorithms: Argon2d, Argon2i and Argon2id. Automatic detection and SIMD
-are excluded; the public theorem must identify a forced scalar call, not assume
-the default public API selected scalar. Legacy `0x10` is a separate extension.
+```sh
+cargo verus verify --manifest-path verus/Cargo.toml --locked \
+  --fwd-verus-args-to roots -- --no-cheating --rlimit 30
+```
 
-The input domain is the existing API-accepted parameters and lengths: parallelism
-1..=2^24-1, memory_kib >= 8 * parallelism, iterations >= 1, salt length 8..=u32::MAX,
-tag length 4..=u32::MAX, and password/secret/associated-data lengths <= u32::MAX.
-Arena sizes and output capacity must be representable on the target platform,
-including the H-prime byte-Vec isize::MAX bound. The claim is conditional on
-normal successful allocation/execution: a successful scalar call returns the tag
-specified by the encoded Argon2 model, whose RFC fidelity must undergo independent review.
-H0 must use the original requested memory_kib; only arena geometry is rounded.
+Targeted iteration:
 
-This is an agreed **target, not a discharged theorem**. Allocation/owning arena and caller contracts,
-scalar pass/slice/lane traversal, finalization and public caller contracts still
-require composition. Allocation-failure/error recovery, zeroization, timing,
-cryptographic strength, SIMD and version 0x10 are outside this first target.
+```sh
+cargo verus focus --manifest-path verus/Cargo.toml --locked \
+  --fwd-verus-args-to roots -- --verify-module block_g_fill
+```
 
-## Checked Slices
+Forward module filters only to the selected root, not vstd. A targeted
+run is not the full acceptance gate. This upstream version rejects partial
+selectors under `verify`; `cargo verus focus` isolates partial
+results in a separate target directory; run unrestricted `verify` afterward.
+Require successful exit and a positive verification summary. Cargo can
+reuse cached verification, so use a fresh `--target-dir` for clean-gate or
+controlled negative checks.
 
-The checks establish agreement with the encoded mathematical definitions and
-arithmetic/bounds safety under each function's preconditions. Rotation requires
-`1 <= n <= 63`; geometry and indexing require valid parameters and positions.
-The row pass, one-column helper, eight-column loop, and complete scalar G
-composition are verified as separate, composing slices. BLAKE2b roots prove
-one block-to-chaining-state transition, RFC tables, buffer append/flush, one
-update step, and final-block padding/serialization. The production repeated
-`update` loop now proves termination, arithmetic/bounds safety, byte accounting,
-and existence of a finite trace of model update steps. It also establishes a
-block-prefix semantic invariant: chaining state after all non-final full blocks,
-the exact active pending bytes, and retention of the final full block. Finalizing
-the resulting state agrees with a block-oriented digest model, using cumulative
-byte counters and the final-block flag. Binary composition proves digest equality
-for any two-part split, including empty parts, under the semantic contracts.
-The initial chaining helper proves the RFC unkeyed parameter word for output
-lengths 1 through 64. Its preconditions require
-a valid buffer length and a total byte count representable in `u128`.
-The whole model transition and indexed edge predicate are opaque; one-step
-validity and pointwise prefix/final-edge lemmas control unfolding. The helper
-uses `spinoff_prover` to isolate solver context, without changing the resource
-limit or adding assumptions. The old diagnostic repro files have been removed.
-Proven G remains unchanged.
+The standalone [compatibility launcher](../tools/verify.sh) delegates to
+Cargo; it no longer enumerates or independently maintains proof roots.
 
-These results are conditional on the encoded block model and caller preconditions.
-The public constructor/update/finalize methods use a ghost-only closed state view,
-preserving private fields. The real multipart wrapper and private prefixed helper
-prove model agreement for arbitrary finite lists of parts: output parameter 1..=64
-and total message length representable in `u128`. No trusted bodies or assumptions
-were added. Production Drop/wiping remain outside the checked
-zeroization scope. Model fidelity still requires independent human review.
-Boundary and partition tests are regression evidence, not the binary theorem's proof.
-H-prime now agrees with the RFC-oriented length-prefix/digest-chain model for both
-short and long branches. The model uses `ceil(T / 32) - 2` for long-output rounds;
-the executable invariant proves that relation, exact output length and termination.
-Explicit singleton slice bindings and prefix base-case facts resolved the prior VC.
-The helper encodes four little-endian bytes directly; supported Vec copying and
-a boolean debug assertion avoid adding assumed specifications for unsupported std
-functions. No assumptions or increased limits were introduced.
+## Coverage and audit boundary
 
-H-prime requires `1 <= out_len <= u32::MAX`, `out_len <= isize::MAX` for the byte
-Vec, and `4 + concat(parts).len() <= u128::MAX`. Claims are conditional on normal
-successful allocation/execution in the standard collection model, not allocation
-failure recovery or zeroization. Independent hashlib vectors use the RFC ceil-based
-formula at output lengths 1, 32, 64, 65, 96, 97, 128 and 129 for message `abc`;
-they are regression evidence, not independent review of the whole specification.
-The theorem domain above is agreed; the H0 adapter and selected validation boundary
-are now checked. The flat initialization loop is checked too. Remaining are full
-hash/owning-arena caller contracts, allocation semantics,
-scalar traversal/finalization and API composition.
-A termination or resource
-limit blocker at `--rlimit 30` requires a minimal reproducer and decomposition
-analysis, not assumptions or a larger limit. Every proved slice must pass the
-standalone `--no-cheating` gate and Cargo tests before synchronization into Edge.
-The theorem about the successfully returned Argon2 tag remains incomplete until
-H-prime, initialization/finalization, and hash traversal are composed and checked.
+The consolidated root includes the union of executable modules and proof
+helpers imported by the old roots:
 
-Core leaves and G are integrated into the hash path. Neither same-source
-compilation nor leaf verification proves all hash-loop callers meet these
-preconditions. The raw-field H0 helper now agrees with its ordered RFC message
-and digest model: header words are p, tag length, requested m, t, version and type,
-followed by password/salt/secret/ad length and contents. Each input length must fit
-u32. The production adapter passes original memory_kib; independent hashlib tests
-cover all algorithm IDs and requested m=35, while existing geometry tests also pass.
-The real enum/Params adapter is now checked against explicit model algorithm/version
-codes, tag length and unrounded memory. `Params::validate` proves its acceptance
-predicate; `checked_h0` returns Ok exactly for valid parameters and bounded input
-lengths, with an H0 digest matching the model. The production hash entry delegates
-to this checked boundary. Canonical public types live in parameters.rs with their
-existing root re-exports; the standalone recommended default remains unchanged.
-Error precedence has regression tests, not a separate formal priority theorem.
-These do not prove the entire hash function's callers, allocations or traversal.
-The production flat initializer now proves the exact 72-byte seed
-`H0 || LE32(column) || LE32(lane)`, H-prime(1024), little-endian 128-word decoding,
-and first-two-block placement for every lane, preserving other words via its
-prefix-write model. Both loops have decreases and checked native index arithmetic.
-It requires lanes>0, lane_length>=2, total blocks <=u32::MAX, and exact mutable
-word-slice length `128 * lanes * lane_length`. The real Memory/hash path delegates
-to this helper; the orphan private slot accessor was removed. The separate owning
-root imports and proves the actual Memory::initialize body with a closed ghost
-word view under the same exact size/geometry conditions. Geometry additionally
-proves blocks=lanes*lane_length and lane_length>=8 for valid inputs.
+- BlaMka, GB/P, complete row/column passes and scalar block G.
+- BLAKE2b compression, constants, buffering, streaming/multipart composition
+  and both H-prime output-length cases.
+- Parameter checking, H0, memory geometry and first-block initialization.
+- Owned memory construction and scalar block updates.
+- Address generation, reference selection and segment/slice/lane/pass traversal.
+- Final reduction, serialization and the scalar caller's successful output.
 
-The successful-result shape of `Memory::zeroed` is now checked: `Ok` contains
-exactly `128 * blocks` zero words. This uses the proposed `Vec::try_reserve_exact`
-content-preservation mapping in a separate local vstd worktree, alongside the
-existing trusted `Vec::new`/`resize` contracts. These are library assumptions,
-not proofs of allocator implementation or guaranteed allocation success. The
-constructor proof also makes the unchanged `Block::SIZE_WORDS` constants visible
-to Verus. General accessors, Drop, recoverable allocation failure, and the full
-geometry/allocation-to-caller chain remain outside the proof. No local application
-`assume_specification`, trusted allocator body, reserve-policy change, or larger
-limit was added. The candidate remains unmerged and requires custom-allocator
-review and upstream approval. Remaining caller/allocation contracts and the
-full Argon2 hash loop, SIMD memory safety/equivalence,
-cryptographic security, machine-code timing, and zeroization are outside the
-checked scope. Specification fidelity is a human obligation independent of
-successful discharge. Verus/vstd, the solver, compiler, and translation semantics
-remain trusted tooling, not verified components.
+`hash_into_scalar` proves that `Ok(())` implies equality with
+`scalar_tag_model` for accepted inputs. The type/version model also preserves
+legacy `0x10` behavior; RFC 9106 itself specifies `0x13`.
 
-No exporter invocation is required. See [../README.md](../README.md) for
-API, security, and testing boundaries. Ordinary GitHub Cargo checks do not run
-Verus; the strict proof command above is a separate release gate.
+All formerly opted-out scalar loops have explicit decreasing measures.
+There are no `exec_allows_no_decreases_clause` annotations in the maintained
+source or proof package. Termination is not a latency bound or allocation
+success guarantee.
+
+The [human audit map](../specs/README.md) identifies canonical RFC definitions,
+semantic dependencies still colocated with production, and internal helpers.
+Partial-update relations live in [proofs/specs.rs](../proofs/specs.rs).
+Complete-pass and notation-equivalence lemmas connect them to the canonical
+model without weakening runtime contracts.
+
+The current consolidated application result is **212 verified, 0 errors**.
+This includes new named constants and equivalence obligations, not new
+SIMD/FFI coverage. The pinned vstd build reports **2060 verified, 0 errors**.
+Counts overlap across historical roots and are not coverage percentages.
+
+SIMD, automatic backend selection, public wrappers, CXX/FFI, allocator
+implementation, destructors/zeroization, timing and application admission
+controls remain outside the theorem. RFC/model fidelity requires independent
+human review even when all verification succeeds.

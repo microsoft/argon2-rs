@@ -1,5 +1,5 @@
 //! The Argon2 1024-byte block type and its compression function `G`
-//! (spec section 3.4 and Appendix A).
+//! (RFC 9106 sections 3.5 and 3.6).
 
 #[cfg(test)]
 use crate::block_g_fill::fill_block;
@@ -47,7 +47,7 @@ impl Block {
     }
 }
 
-/// Permutation P over 16 64-bit words (Appendix A): one column round
+/// Permutation P over 16 64-bit words (RFC 9106 section 3.6): one column round
 /// followed by one diagonal round of the modified Blake2b round function.
 #[inline(always)]
 #[cfg(test)]
@@ -55,9 +55,9 @@ fn permute(v: &mut [u64; 16]) {
     *v = crate::block_primitives::permute(v);
 }
 
-/// Compression function `G(X, Y)` (spec section 3.4): `R = X xor Y`, apply
+/// Compression function `G(X, Y)` (RFC 9106 section 3.5): `R = X xor Y`, apply
 /// `P` rowwise then columnwise over the 8x8 matrix of 16-byte registers,
-/// output `Z xor R`.
+/// output `Z xor R` (RFC 9106 section 3.5).
 #[inline(always)]
 #[cfg(test)]
 pub(crate) fn compress(x: &[u64], y: &[u64], out: &mut [u64]) {

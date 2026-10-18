@@ -12,6 +12,9 @@ use vstd::prelude::*;
 
 #[cfg(verus_keep_ghost)]
 verus! {
+// Complete scalar tag composition: RFC 9106 section 3.2, steps 1-8.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
+// Legacy 0x10 is an extension; see specs/README.md for the complete audit boundary.
 pub(crate) open spec fn scalar_tag_model(
     algorithm: Algorithm,
     version: Version,
@@ -22,15 +25,15 @@ pub(crate) open spec fn scalar_tag_model(
     secret: Seq<u8>,
     ad: Seq<u8>,
 ) -> Seq<u8> {
-    let h0 = initial_hash_model::h0(
-        initial_hash_model::parameter_fields(algorithm, version, params, tag_len),
+    let h0 = crate::specs::initial_hash::h0(
+        crate::specs::initial_hash::parameter_fields(algorithm, version, params, tag_len),
         password, salt, secret, ad,
     );
     let lanes = params.parallelism;
     let blocks = specs::memory_blocks(params.memory_kib, lanes);
     let lane_length = blocks / lanes as int;
     let segment_length = lane_length / 4;
-    let initial = memory_initialization_model::initialized_prefix(
+    let initial = crate::specs::initialization::initialized_prefix(
         Seq::new(blocks as nat * 128, |_index: int| 0u64),
         h0, lane_length as nat, 2 * lanes as nat,
     );
@@ -40,7 +43,7 @@ pub(crate) open spec fn scalar_tag_model(
         total_passes: params.iterations, pass: 0, lane: 0, slice: 0,
     };
     let final_memory = core_segment::traversal_prefix(initial, segment, params.iterations as nat);
-    long_model::h_prime(tag_len,
+    crate::specs::h_prime::h_prime(tag_len,
         core_final::serialize_words(core_final::final_xor(
             final_memory, lanes as nat, lane_length as nat, lanes as nat))
     )

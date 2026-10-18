@@ -7,7 +7,7 @@ use crate::{Algorithm, Error, Params, Version};
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures result@ == model::header(fields@),
+    ensures result@ == crate::specs::initial_hash::header(fields@),
 ))]
 pub(crate) fn header(fields: &[u32; 6]) -> [u8; 24] {
     let mut output = [0u8; 24];
@@ -15,7 +15,7 @@ pub(crate) fn header(fields: &[u32; 6]) -> [u8; 24] {
         invariant
             forall|position: int| 0 <= position < 24 ==>
                 output@[position] == if position < index as int {
-                    model::header(fields@)[position]
+                    crate::specs::initial_hash::header(fields@)[position]
                 } else { 0u8 },
         decreases 24 - index,
     ))]
@@ -28,7 +28,7 @@ pub(crate) fn header(fields: &[u32; 6]) -> [u8; 24] {
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires password.len() <= u32::MAX as usize, salt.len() <= u32::MAX as usize,
         secret.len() <= u32::MAX as usize, ad.len() <= u32::MAX as usize,
-    ensures result@ == model::h0(fields@, password@, salt@, secret@, ad@),
+    ensures result@ == crate::specs::initial_hash::h0(fields@, password@, salt@, secret@, ad@),
 ))]
 pub(crate) fn compute_h0(
     fields: &[u32; 6],
@@ -66,7 +66,7 @@ pub(crate) fn compute_h0(
         model::parts_step(parts@, 8);
         model::parts_step(parts@, 9);
         assert(stream::blake2b_parts_prefix(parts@, 9)
-            == model::message(fields@, password@, salt@, secret@, ad@));
+            == crate::specs::initial_hash::message(fields@, password@, salt@, secret@, ad@));
     }
     crate::blake2b::blake2b(64, &parts)
 }
@@ -76,8 +76,8 @@ pub(crate) fn compute_h0(
     requires tag_len <= u32::MAX as usize,
         password.len() <= u32::MAX as usize, salt.len() <= u32::MAX as usize,
         secret.len() <= u32::MAX as usize, ad.len() <= u32::MAX as usize,
-    ensures result@ == model::h0(
-        model::parameter_fields(algorithm, version, params, tag_len as nat),
+    ensures result@ == crate::specs::initial_hash::h0(
+        crate::specs::initial_hash::parameter_fields(algorithm, version, params, tag_len as nat),
         password@, salt@, secret@, ad@),
 ))]
 pub(crate) fn compute_from_params(
@@ -109,8 +109,8 @@ pub(crate) fn compute_from_params(
         && tag_len <= isize::MAX as usize
         && password.len() <= u32::MAX as usize && secret.len() <= u32::MAX as usize
         && ad.len() <= u32::MAX as usize),
-        result matches Ok(digest) ==> digest@ == model::h0(
-            model::parameter_fields(algorithm, version, params, tag_len as nat),
+        result matches Ok(digest) ==> digest@ == crate::specs::initial_hash::h0(
+            crate::specs::initial_hash::parameter_fields(algorithm, version, params, tag_len as nat),
             password@, salt@, secret@, ad@),
 ))]
 pub(crate) fn checked_h0(

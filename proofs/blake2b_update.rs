@@ -1,3 +1,4 @@
+use crate::specs::digest::{blake2b_nonfinal_blocks, blake2b_stream_digest};
 use vstd::prelude::*;
 use crate::specs;
 
@@ -32,35 +33,16 @@ pub proof fn blake2b_buffer_append_composition(
 )
     requires buffer.len() == 128, 0 <= start,
         start + first.len() + second.len() <= 128,
-    ensures specs::blake2b_buffer_append(
-        specs::blake2b_buffer_append(buffer, start, first),
+    ensures crate::invariant_specs::blake2b_buffer_append(
+        crate::invariant_specs::blake2b_buffer_append(buffer, start, first),
         start + first.len(), second,
-    ) == specs::blake2b_buffer_append(buffer, start, first + second),
+    ) == crate::invariant_specs::blake2b_buffer_append(buffer, start, first + second),
 {
-    let left = specs::blake2b_buffer_append(
-        specs::blake2b_buffer_append(buffer, start, first), start + first.len(), second,
+    let left = crate::invariant_specs::blake2b_buffer_append(
+        crate::invariant_specs::blake2b_buffer_append(buffer, start, first), start + first.len(), second,
     );
-    let right = specs::blake2b_buffer_append(buffer, start, first + second);
+    let right = crate::invariant_specs::blake2b_buffer_append(buffer, start, first + second);
     assert(left =~= right);
-}
-
-#[verifier::opaque]
-pub open spec fn blake2b_nonfinal_blocks(
-    initial_h: Seq<u64>, initial_counter: u128, message: Seq<u8>, blocks: nat,
-) -> Seq<u64>
-    recommends initial_h.len() == 8, 128 * blocks <= message.len(),
-        initial_counter as int + 128 * blocks <= u128::MAX as int,
-    decreases blocks,
-{
-    if blocks == 0 {
-        initial_h
-    } else {
-        specs::blake2b_compress_block(
-            blake2b_nonfinal_blocks(initial_h, initial_counter, message, (blocks - 1) as nat),
-            message.subrange(128 * (blocks - 1), (128 * blocks) as int),
-            (initial_counter as int + 128 * blocks) as u128, false,
-        )
-    }
 }
 
 pub proof fn blake2b_nonfinal_blocks_len(
@@ -171,7 +153,7 @@ pub proof fn blake2b_update_semantic_next(
     reveal(blake2b_update_next);
     let message = initial.2.take(initial.3 as int) + input;
     let suffix = input.subrange(state.4 as int, input.len() as int);
-    specs::blake2b_update_step_progress(state.0, state.1, state.2, state.3, suffix);
+    crate::invariant_specs::blake2b_update_step_progress(state.0, state.1, state.2, state.3, suffix);
     let next = blake2b_update_next(state, input);
     let next_blocks = if state.3 == 128 { blocks + 1 } else { blocks };
     if state.3 == 128 {
@@ -190,24 +172,6 @@ pub proof fn blake2b_update_semantic_next(
             assert(message[initial.3 + state.4 + index - start] == input[state.4 + index - start]);
         }
     }
-}
-
-#[verifier::opaque]
-pub open spec fn blake2b_stream_digest(
-    initial_h: Seq<u64>, initial_counter: u128, message: Seq<u8>,
-) -> Seq<u8>
-    recommends initial_h.len() == 8,
-        initial_counter as int + message.len() <= u128::MAX as int,
-{
-    let blocks = if message.len() == 0 { 0nat } else { ((message.len() - 1) / 128) as nat };
-    let remaining = message.len() - 128 * blocks;
-    let padded = Seq::new(128, |index: int|
-        if index < remaining { message[128 * blocks + index] } else { 0u8 });
-    let state = specs::blake2b_compress_block(
-        blake2b_nonfinal_blocks(initial_h, initial_counter, message, blocks), padded,
-        (initial_counter as int + message.len()) as u128, true,
-    );
-    specs::blake2b_serialize_state(state)
 }
 
 pub proof fn blake2b_update_semantic_finalize(
@@ -308,7 +272,7 @@ pub open spec fn blake2b_update_state_valid(state: Blake2bUpdateState, input_len
 pub open spec fn blake2b_update_next(state: Blake2bUpdateState, input: Seq<u8>) -> Blake2bUpdateState
     recommends blake2b_update_state_valid(state, input.len()), state.4 < input.len(),
 {
-    let step = specs::blake2b_update_step(
+    let step = crate::invariant_specs::blake2b_update_step(
         state.0, state.1, state.2, state.3, input.subrange(state.4 as int, input.len() as int),
     );
     (step.0, step.1, step.2, step.3, state.4 + step.4)
@@ -320,7 +284,7 @@ pub proof fn blake2b_update_next_valid(state: Blake2bUpdateState, input: Seq<u8>
 {
     reveal(blake2b_update_next);
     let suffix = input.subrange(state.4 as int, input.len() as int);
-    specs::blake2b_update_step_progress(state.0, state.1, state.2, state.3, suffix);
+    crate::invariant_specs::blake2b_update_step_progress(state.0, state.1, state.2, state.3, suffix);
 }
 
 #[verifier::opaque]

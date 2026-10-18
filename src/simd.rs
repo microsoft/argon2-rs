@@ -14,7 +14,7 @@
 //! shared [`walk_segment`], so these backends cannot change *which* blocks are
 //! read. Output is checked bit-for-bit against the scalar path by the tests at
 //! the bottom of this file and by the RFC 9106 KATs; the Verus proof in
-//! `verus/block_verified.rs` models the scalar path only.
+//! `verus/lib.rs` verifies the scalar path only.
 //!
 //! This module contains `unsafe` for unaligned
 //! 128/256-bit loads and stores through references to `[u64; 2]`/`[u64; 4]`
@@ -635,6 +635,10 @@ mod tests {
     #[test]
     fn vector_owners_wipe_on_return_and_unwind() {
         for panic in [false, true] {
+            if panic && !cfg!(panic = "unwind") {
+                eprintln!("skipping unwinding case: this build aborts on panic");
+                continue;
+            }
             let (result, events) = crate::wipe::observe(|| {
                 // SAFETY: all-zero integer vectors are valid on every target CPU.
                 let _small = Vectors128::<8>(unsafe { core::mem::zeroed() });

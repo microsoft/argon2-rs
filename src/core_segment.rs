@@ -36,16 +36,22 @@ impl Segment {
     }
 }
 
+// RFC 9106 section 3.2, steps 3-5: skip the two pre-initialized blocks.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub(crate) open spec fn segment_start(seg: Segment) -> int {
     if seg.pass == 0 && seg.slice == 0 { 2int } else { 0int }
 }
 
+// RFC 9106 section 3.4.1.3: Argon2id switches after the first two slices.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.4.1.3
 pub(crate) open spec fn independent(seg: Segment) -> bool {
     seg.algorithm as u32 == 1
         || (seg.algorithm as u32 == 2 && seg.pass == 0 && seg.slice < 2)
 }
 
 #[verifier::opaque]
+// RFC 9106 section 3.4.1: obtain J1/J2 from addresses or the previous block.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.4.1
 pub(crate) open spec fn segment_random(words: Seq<u64>, seg: Segment, index: u32) -> u64 {
     if independent(seg) {
         let input = core_address::address_input(seg.pass, seg.lane, seg.slice,
@@ -59,6 +65,8 @@ pub(crate) open spec fn segment_random(words: Seq<u64>, seg: Segment, index: u32
 }
 
 #[verifier::opaque]
+// RFC 9106 section 3.2, steps 5-6: one selected-block update.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub(crate) open spec fn segment_step(words: Seq<u64>, seg: Segment, index: u32) -> Seq<u64> {
     let previous = specs::predecessor_position(seg.lane, seg.lane_length,
         seg.slice, seg.segment_length, index);
@@ -71,6 +79,8 @@ pub(crate) open spec fn segment_step(words: Seq<u64>, seg: Segment, index: u32) 
 }
 
 #[verifier::opaque]
+// RFC 9106 section 3.2, steps 5-6: ordered updates within one segment.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub(crate) open spec fn segment_prefix(before: Seq<u64>, seg: Segment, completed: nat) -> Seq<u64>
     decreases completed,
 {
@@ -269,6 +279,8 @@ pub(crate) fn fill_segment_scalar(memory: &mut Memory, seg: &Segment) {
 #[cfg(verus_keep_ghost)]
 verus! {
 #[verifier::opaque]
+// RFC 9106 section 3.2, steps 5-6: the lane segments within one slice.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub(crate) open spec fn slice_prefix(before: Seq<u64>, seg: Segment, lanes: nat) -> Seq<u64>
     decreases lanes,
 {
@@ -315,6 +327,8 @@ pub(crate) fn fill_slice(memory: &mut Memory, seg: &Segment) {
 #[cfg(verus_keep_ghost)]
 verus! {
 #[verifier::opaque]
+// RFC 9106 section 3.2, steps 5-6: the four slices within a pass.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub(crate) open spec fn pass_prefix(before: Seq<u64>, seg: Segment, slices: nat) -> Seq<u64>
     decreases slices,
 {
@@ -334,6 +348,8 @@ pub(crate) proof fn pass_advance(before: Seq<u64>, seg: Segment, slice: u32)
 }
 
 #[verifier::opaque]
+// RFC 9106 section 3.2, steps 5-6: all requested passes.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub(crate) open spec fn traversal_prefix(before: Seq<u64>, seg: Segment, passes: nat) -> Seq<u64>
     decreases passes,
 {

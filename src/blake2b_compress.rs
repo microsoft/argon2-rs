@@ -6,7 +6,6 @@ use crate::specs;
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result@ == specs::blake2b_decode_block(block@),
 ))]
@@ -20,6 +19,7 @@ pub(crate) fn decode_message(block: &[u8; 128]) -> [u64; 16] {
                 } else {
                     message@[i] == 0
                 },
+        decreases 16 - word_index,
     ))]
     for word_index in 0..16 {
         let byte_index = word_index * 8;
@@ -35,6 +35,7 @@ pub(crate) fn decode_message(block: &[u8; 128]) -> [u64; 16] {
     message
 }
 
+#[cfg_attr(verus_keep_ghost, verifier::rlimit(30))]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == specs::blake2b_g(a, b, c, d, x, y),
 ))]
@@ -80,7 +81,6 @@ pub(crate) fn round(v: &mut [u64; 16], message: &[u64; 16], sigma: &[usize; 16])
 }
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result@ == specs::blake2b_initial_v(h@, iv@, counter, last),
 ))]
@@ -94,6 +94,7 @@ fn initialize_state(h: &[u64; 8], iv: &[u64; 8], counter: u128, last: bool) -> [
                 } else {
                     state@[i] == 0
                 },
+        decreases 8 - index,
     ))]
     for index in 0..8 {
         state[index] = h[index];
@@ -108,6 +109,7 @@ fn initialize_state(h: &[u64; 8], iv: &[u64; 8], counter: u128, last: bool) -> [
                 } else {
                     state@[i] == 0
                 },
+        decreases 8 - index,
     ))]
     for index in 0..8 {
         state[8 + index] = iv[index];
@@ -115,13 +117,14 @@ fn initialize_state(h: &[u64; 8], iv: &[u64; 8], counter: u128, last: bool) -> [
     state[12] ^= counter as u64;
     state[13] ^= (counter >> 64) as u64;
     if last {
+        #[cfg(verus_keep_ghost)]
+        proof! { crate::invariant_specs::word_notation_equivalence(state[14]); }
         state[14] = !state[14];
     }
     state
 }
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 #[cfg_attr(verus_keep_ghost, verus_spec(
     requires specs::valid_blake2b_sigma(sigma@),
     ensures final(state)@ == specs::blake2b_rounds_prefix(old(state)@, message@, sigma@, 12),
@@ -132,6 +135,7 @@ fn run_rounds(state: &mut [u64; 16], message: &[u64; 16], sigma: &[[usize; 16]; 
         invariant
             state@ == specs::blake2b_rounds_prefix(
                 old(state)@, message@, sigma@, round_index as nat),
+        decreases 12 - round_index,
     ))]
     for round_index in 0..12 {
         round(state, message, &sigma[round_index]);
@@ -139,7 +143,6 @@ fn run_rounds(state: &mut [u64; 16], message: &[u64; 16], sigma: &[[usize; 16]; 
 }
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 #[cfg_attr(verus_keep_ghost, verus_spec(
     ensures final(h)@ == specs::blake2b_fold(old(h)@, state@),
 ))]
@@ -152,6 +155,7 @@ fn fold_state(h: &mut [u64; 8], state: &[u64; 16]) {
                 } else {
                     h@[i] == old(h)@[i]
                 },
+        decreases 8 - index,
     ))]
     for index in 0..8 {
         h[index] = h[index] ^ state[index] ^ state[index + 8];

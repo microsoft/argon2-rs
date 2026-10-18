@@ -22,14 +22,20 @@ impl Memory {
     pub closed spec fn words(&self) -> Seq<u64> { self.0@ }
 }
 
+// RFC 9106 section 3.2: one 1024-byte B[i][j] in the flat word representation.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub open spec fn block_words(words: Seq<u64>, block: int) -> Seq<u64> {
     words.subrange(block * 128, (block + 1) * 128)
 }
 
+// RFC 9106 section 3.2, steps 5-6: replace one B[i][j], preserving other blocks.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub open spec fn write_block(words: Seq<u64>, block: int, replacement: Seq<u64>) -> Seq<u64> {
     write_block_prefix(words, block, replacement, 128)
 }
 
+// Flat-memory representation helper, also used by the canonical full write above.
+// It therefore remains in the human audit closure, not just a loop invariant.
 pub open spec fn write_block_prefix(
     words: Seq<u64>, block: int, replacement: Seq<u64>, completed: int,
 ) -> Seq<u64> {
@@ -40,6 +46,8 @@ pub open spec fn write_block_prefix(
 }
 
 #[verifier::opaque]
+// RFC 9106 section 3.2, steps 5-6: G and the later-pass destination XOR.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub open spec fn fill_result(
     words: Seq<u64>, previous: int, reference: int, current: int, with_xor: bool,
 ) -> Seq<u64> {
@@ -180,7 +188,7 @@ impl Memory {
             && lane_length as int == 4 * segment_length as int
             && params.parallelism as int * lane_length as int <= u32::MAX as int
             && memory.words().len() == blocks as int * 128
-            && memory.words() == model::initialized_prefix(
+            && memory.words() == crate::specs::initialization::initialized_prefix(
                 Seq::new(blocks as nat * 128, |_index: int| 0u64),
                 h0@, lane_length as nat, 2 * params.parallelism as nat,
             )
@@ -234,7 +242,7 @@ impl Memory {
             lanes as int * lane_length as int <= u32::MAX as int,
             lanes as int * lane_length as int * 128 == old(self).words().len(),
         ensures final(self).words().len() == old(self).words().len(),
-            final(self).words() == model::initialized_prefix(
+            final(self).words() == crate::specs::initialization::initialized_prefix(
             old(self).words(), h0@, lane_length as nat, 2 * lanes as nat),
     ))]
     pub(crate) fn initialize(&mut self, h0: &[u8; 64], lanes: u32, lane_length: u32) {

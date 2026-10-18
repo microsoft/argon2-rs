@@ -7,7 +7,6 @@ use crate::specs;
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires row < 8,
     ensures result@ == specs::gather_row(words@, row as int),
@@ -22,6 +21,7 @@ pub(crate) fn gather_row(words: &[u64; 128], row: usize) -> [u64; 16] {
                 } else {
                     gathered@[i] == 0
                 },
+        decreases 16 - index,
     ))]
     for index in 0..16 {
         gathered[index] = words[16 * row + index];
@@ -30,17 +30,17 @@ pub(crate) fn gather_row(words: &[u64; 128], row: usize) -> [u64; 16] {
 }
 
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 #[cfg_attr(verus_keep_ghost, verus_spec(
     requires row < 8,
-    ensures final(words)@ == specs::scatter_row_prefix(
+    ensures final(words)@ == crate::invariant_specs::scatter_row_prefix(
         old(words)@, row as int, 16, output@),
 ))]
 pub(crate) fn scatter_row(words: &mut [u64; 128], row: usize, output: &[u64; 16]) {
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant
-            words@ == specs::scatter_row_prefix(
+            words@ == crate::invariant_specs::scatter_row_prefix(
                 old(words)@, row as int, index as int, output@),
+        decreases 16 - index,
     ))]
     for index in 0..16 {
         words[16 * row + index] = output[index];
@@ -48,14 +48,14 @@ pub(crate) fn scatter_row(words: &mut [u64; 128], row: usize, output: &[u64; 16]
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(
-    ensures final(words)@ == specs::permute_rows_prefix(old(words)@, 8),
+    ensures final(words)@ == crate::invariant_specs::permute_rows_prefix(old(words)@, 8),
 ))]
 #[cfg_attr(verus_keep_ghost, verifier::loop_isolation(false))]
-#[cfg_attr(verus_keep_ghost, verifier::exec_allows_no_decreases_clause)]
 pub(crate) fn permute_rows(words: &mut [u64; 128]) {
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant
-            words@ == specs::permute_rows_prefix(old(words)@, row as nat),
+            words@ == crate::invariant_specs::permute_rows_prefix(old(words)@, row as nat),
+        decreases 8 - row,
     ))]
     for row in 0..8 {
         let gathered = crate::wipe::Words(gather_row(words, row));
