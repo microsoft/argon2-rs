@@ -1,11 +1,14 @@
 //! Same-source offset-update proof against a finite model-step trace.
 
 #![feature(proc_macro_hygiene)]
+#![feature(cfg_eval)]
 
 use vstd::prelude::*;
 
 #[path = "../specs/mod.rs"]
 mod specs;
+#[path = "../src/wipe.rs"]
+mod wipe;
 #[path = "../proofs/blake2b_update.rs"]
 mod blake2b_update_model;
 #[path = "../src/blake2b_compress.rs"]

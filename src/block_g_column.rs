@@ -53,7 +53,7 @@ pub(crate) fn scatter_column(words: &mut [u64; 128], column: usize, output: &[u6
     ensures final(words)@ == specs::permute_one_column(old(words)@, column as int),
 ))]
 pub(crate) fn permute_column(words: &mut [u64; 128], column: usize) {
-    let gathered = gather_column(words, column);
-    let output = block_primitives::permute(gathered);
-    scatter_column(words, column, &output);
+    let gathered = crate::wipe::Words(gather_column(words, column));
+    let output = crate::wipe::Words(block_primitives::permute(&gathered.0));
+    scatter_column(words, column, &output.0);
 }

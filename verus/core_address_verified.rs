@@ -1,11 +1,14 @@
 //! Verifies the real data-independent address-block generation transition.
 
 #![feature(proc_macro_hygiene)]
+#![feature(cfg_eval)]
 
 use vstd::prelude::*;
 
 #[path = "../specs/mod.rs"]
 mod specs;
+#[path = "../src/wipe.rs"]
+mod wipe;
 #[path = "../src/block_primitives.rs"]
 mod block_primitives;
 #[path = "../src/block_g.rs"]

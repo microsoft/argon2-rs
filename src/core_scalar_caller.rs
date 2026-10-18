@@ -84,7 +84,7 @@ pub(crate) fn hash_into_scalar(
     ad: &[u8],
     out: &mut [u8],
 ) -> Result<(), Error> {
-    let h0 = crate::initial_hash::checked_h0(
+    let h0 = crate::wipe::Bytes(crate::initial_hash::checked_h0(
         algorithm,
         version,
         params,
@@ -93,9 +93,9 @@ pub(crate) fn hash_into_scalar(
         secret,
         ad,
         out.len(),
-    )?;
+    )?);
     let (mut memory, memory_blocks, lane_length, segment_length) =
-        Memory::zeroed_initialized(&h0, params, salt.len(), out.len())?;
+        Memory::zeroed_initialized(&h0.0, params, salt.len(), out.len())?;
     #[cfg(verus_keep_ghost)]
     let (geometry_blocks, geometry_lane_length, geometry_segment_length) =
         crate::core_primitives::memory_geometry(params.memory_kib, params.parallelism);
@@ -123,8 +123,13 @@ pub(crate) fn hash_into_scalar(
         assert(out.len() <= isize::MAX as usize);
     }
     core_segment::fill_memory(&mut memory, &seg);
-    let tag = core_final::scalar_tag(&memory, params.parallelism, lane_length, out.len());
-    copy_tag(out, &tag);
+    let tag = crate::wipe::ByteVec(core_final::scalar_tag(
+        &memory,
+        params.parallelism,
+        lane_length,
+        out.len(),
+    ));
+    copy_tag(out, &tag.0);
     Ok(())
 }
 

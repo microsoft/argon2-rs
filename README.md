@@ -95,12 +95,15 @@ supported.
   Argon2d uses data-dependent addressing; Argon2id uses independent addressing
   for the first half of pass zero, then dependent addressing. There is no
   blanket constant-time guarantee or machine-code timing proof.
-- **Secret lifetime:** working memory and the BLAKE2b owned buffer/state are
-  overwritten with volatile stores on normal `Drop`, so these writes cannot
-  be discarded as dead stores. H0 fields are streamed without a plaintext heap
-  concatenation. This does not cover every temporary, register or buffer
-  copy, and does not erase caller-owned passwords, salts, secrets, or tags.
-  Cleanup cannot be relied on after process abort or termination.
+- **Secret lifetime:** working memory, BLAKE2b owned buffer/state, and explicit
+  secret-bearing byte, word and SIMD scratch owners are overwritten with
+  volatile stores on `Drop`, including panic unwinding. Streaming BLAKE2b
+  updates state in place; H0 fields are streamed without a plaintext heap
+  concatenation. These wipes cannot be discarded as dead stores, but do not
+  cover every compiler-generated copy, stack spill or register, and do not
+  erase caller-owned passwords, salts, secrets, or returned tags. Cleanup
+  cannot be relied on after process abort, `panic=abort` or termination.
+  See the [temporary-lifetime review and remediation](SECURITY-REVIEW.md).
 - **Resource limits:** valid parameters can still exhaust memory or consume
   excessive CPU time. Enforce application-level memory, iteration, and
   concurrency caps before hashing, especially for attacker-controlled inputs.
@@ -111,7 +114,10 @@ supported.
   loads/stores and CPU-feature calls have safety obligations: live correctly 
   sized references, in-bounds accesses, valid store destinations, 
   and appropriate runtime dispatch. Unaligned `loadu`/`storeu` operations 
-  remove alignment requirements, not size or bounds requirements. The wipe helper's two volatile stores also require live, exclusively borrowed elements. 
+  remove alignment requirements, not size or bounds requirements. The wipe
+  helper's volatile stores require live, exclusively borrowed elements.
+  SIMD cleanup constructs all-zero integer vectors without requiring a
+  particular runtime CPU feature.
   Differential tests are evidence, not a proof of these kernels or the wipe helper.
 
 ## Mathematical proofs
@@ -130,11 +136,11 @@ needed by the next one.
 
 | Stage 3 step | Proof chain | Status and root |
 | --- | --- | --- |
-| **3.1 H0 and initial memory** | Validate parameters and lengths → serialize the requested parameters into H0 → derive lane seeds and first blocks → create the owned arena with exact geometry. | Complete. H0, validation, initialization and owner roots report 120/0, 63/0, 69/0 and 156/0. The owner result relies on the disclosed local vstd allocation-shape specification. |
-| **3.2 Addressing and one segment** | Encode address input → prove counter and 128-word scheduling → prove exact predecessor/reference indices and exclusions → gather source blocks, apply G, and update only the current block → prove the segment's final arena. | Complete. Address, shared-selector and segment roots report 30/0, 62/0 and 180/0. The segment model covers independent and dependent addressing. |
-| **3.3 Pass, slice and lane traversal** | Compose segment transitions in lane order → compose four slices → compose all passes, preserving the exact arena prefix at each loop boundary. | Complete. Included in the segment/traversal root (180/0), with final arena equality against `traversal_prefix`. |
-| **3.4 Final block and tag derivation** | XOR each lane's last block → serialize 128 words little-endian → apply the already-proved H-prime function. | Complete. The finalization root reports 166/0 and proves the `scalar_tag` model. |
-| **3.5 Caller and successful returned tag** | Compose checked H0 → successful owner construction → traversal → scalar tag → output copy; discharge helper preconditions inside the caller. | Complete for the forced-scalar caller. The caller root reports 200/0: `Ok(())` implies exact output equality with the whole-hash model. Public wrapper backend selection and SIMD are outside this theorem. |
+| **3.1 H0 and initial memory** | Validate parameters and lengths → serialize the requested parameters into H0 → derive lane seeds and first blocks → create the owned arena with exact geometry. | Complete. H0, validation, initialization and owner roots report 121/0, 63/0, 70/0 and 157/0. The owner result relies on the disclosed local vstd allocation-shape specification. |
+| **3.2 Addressing and one segment** | Encode address input → prove counter and 128-word scheduling → prove exact predecessor/reference indices and exclusions → gather source blocks, apply G, and update only the current block → prove the segment's final arena. | Complete. Address, shared-selector and segment roots report 31/0, 62/0 and 181/0. The segment model covers independent and dependent addressing. |
+| **3.3 Pass, slice and lane traversal** | Compose segment transitions in lane order → compose four slices → compose all passes, preserving the exact arena prefix at each loop boundary. | Complete. Included in the segment/traversal root (181/0), with final arena equality against `traversal_prefix`. |
+| **3.4 Final block and tag derivation** | XOR each lane's last block → serialize 128 words little-endian → apply the already-proved H-prime function. | Complete. The finalization root reports 167/0 and proves the `scalar_tag` model. |
+| **3.5 Caller and successful returned tag** | Compose checked H0 → successful owner construction → traversal → scalar tag → output copy; discharge helper preconditions inside the caller. | Complete for the forced-scalar caller. The caller root reports 201/0: `Ok(())` implies exact output equality with the whole-hash model. Public wrapper backend selection and SIMD are outside this theorem. |
 
 Counts are verifier obligations, not coverage percentages; roots overlap and
 import shared helpers. The theorem proves functional agreement with the encoded
@@ -198,32 +204,36 @@ Proof roots include:
 - with **62 verified obligations, zero errors** for the combined primitive/indexing
 root [verus/shared.rs](verus/shared.rs), including helpers for 11 executable leaves,
 - **8/0** for the scalar-only root [verus/block_verified.rs](verus/block_verified.rs),
-- **11/0** for the row helper [verus/block_g_rows_verified.rs](verus/block_g_rows_verified.rs),
-- **11/0** for one column [verus/block_g_column_verified.rs](verus/block_g_column_verified.rs),
-- **13/0** for the outer column loop [verus/block_g_columns_verified.rs](verus/block_g_columns_verified.rs),
-- **21/0** for full scalar G [verus/block_g_fill_verified.rs](verus/block_g_fill_verified.rs),
-- One BLAKE2b block-to-state transition reports **18/0** [verus/blake2b_compress_verified.rs](verus/blake2b_compress_verified.rs), and
+- **12/0** for the row helper [verus/block_g_rows_verified.rs](verus/block_g_rows_verified.rs),
+- **12/0** for one column [verus/block_g_column_verified.rs](verus/block_g_column_verified.rs),
+- **14/0** for the outer column loop [verus/block_g_columns_verified.rs](verus/block_g_columns_verified.rs),
+- **22/0** for full scalar G [verus/block_g_fill_verified.rs](verus/block_g_fill_verified.rs),
+- One BLAKE2b block-to-state transition reports **19/0** [verus/blake2b_compress_verified.rs](verus/blake2b_compress_verified.rs), and
 - tables/unkeyed initialization **8/0** [verus/blake2b_tables_verified.rs](verus/blake2b_tables_verified.rs).
-- The BLAKE2b buffer root [verus/blake2b_buffer_verified.rs](verus/blake2b_buffer_verified.rs) additionally reports **23 verified, 0 errors** for append, full-buffer flush/update step, padding, final-block serialization,
+- The BLAKE2b buffer root [verus/blake2b_buffer_verified.rs](verus/blake2b_buffer_verified.rs) additionally reports **24 verified, 0 errors** for append, full-buffer flush/update step, padding, final-block serialization,
 and positive step progress/byte-count conservation. The shared progress lemma
 adds one obligation to every root; this does not expand their hash-level scope.
 - [verus/blake2b_update_verified.rs](verus/blake2b_update_verified.rs) root reports 
-**41 verified, 0 errors** for the production repeated update loop,
+**42 verified, 0 errors** for the production repeated update loop,
 block-stream digest semantics and binary partition-composition lemmas.
 The initialization helper adds two obligations to roots importing the tables.
 The parts-prefix model adds two checks to streaming roots.
 - [verus/blake2b_api_verified.rs](verus/blake2b_api_verified.rs) root reports
-**55 verified, 0 errors** for the public methods, multipart/prefixed wrappers, H-prime and its model lemmas.
+**56 verified, 0 errors** for the public methods, multipart/prefixed wrappers, H-prime and its model lemmas.
 - [verus/initial_hash_verified.rs](verus/initial_hash_verified.rs) root reports
-**120 verified, 0 errors** for H0 and its checked parameter adapter/boundary.
+**121 verified, 0 errors** for H0 and its checked parameter adapter/boundary.
 [verus/parameters_verified.rs](verus/parameters_verified.rs) reports **63 verified, 0 errors**
 for parameter validation plus imported core/geometry lemmas.
 - [verus/memory_initialization_verified.rs](verus/memory_initialization_verified.rs)
-root reports **69 verified, 0 errors** for lane-block generation and flat initialization.
+root reports **70 verified, 0 errors** for lane-block generation and flat initialization.
 - [verus/memory_owner_verified.rs](verus/memory_owner_verified.rs) reports
-**156 verified, 0 errors** with the local Verus/vstd review build, for the
+**157 verified, 0 errors** with the local Verus/vstd review build, for the
 geometry/allocation/initialization composition helper, the successful-result
 shape of `Memory::zeroed`, the real owning initializer, and imported helpers.
+
+The temporary-lifetime remediation revalidated all 19 roots. Importing the
+cleanup module adds the functional `ByteVec::into_inner` obligation; this is
+not a proof of destructors or zeroization.
 
 The shared primitive root covers 11 executable leaf functions; its count also
 includes proof helpers. Across all roots, counts are verifier obligations, not
@@ -257,13 +267,13 @@ The real scalar segment loop now proves exact arena equality with its
 `segment_prefix` model, under valid segment geometry and exact arena size.
 It covers both addressing modes, counter scheduling and the scalar callback.
 The same root also proves lane/slice/pass traversal against `traversal_prefix`
-and reports **180 verified, 0 errors**.
+and reports **181 verified, 0 errors**.
 
-The final reduction/serialization/H-prime root reports **166 verified, 0 errors**:
+The final reduction/serialization/H-prime root reports **167 verified, 0 errors**:
 it proves the lane-tail XOR, little-endian 128-word encoding and resulting
 `scalar_tag` against the H-prime model.
 
-The whole scalar caller root reports **200 verified, 0 errors** and proves
+The whole scalar caller root reports **201 verified, 0 errors** and proves
 `hash_into_scalar`: for accepted inputs, `Ok(())` implies that `out` equals the
 whole-hash model for the same Argon2d/i/id inputs and parameters. The production
 `Backend::Scalar` branch delegates to this helper. This does not guarantee `Ok`;
@@ -285,7 +295,7 @@ The original plan's scalar composition steps 3.2 (one segment), 3.3 (outer
 traversal), 3.4 (final reduction/serialization/H-prime), and 3.5 (returned tag
 on successful forced-scalar execution) are complete. Public wrapper selection,
 automatic backend selection and SIMD equivalence remain outside this theorem.
-Drop/wiping are unchanged; zeroization is
+Temporary owners now wipe on drop; zeroization is
 not part of these functional proofs. The full hash loop,
 caller invariants, SIMD equivalence and memory safety, permutation bijectivity,
 cryptographic security, timing, and zeroization are not established

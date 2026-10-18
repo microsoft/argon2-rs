@@ -139,11 +139,11 @@ impl Memory {
         current: usize,
         with_xor: bool,
     ) {
-        let prev = read_owned_block(&self.0, previous);
-        let reference = read_owned_block(&self.0, reference);
-        let mut next = read_owned_block(&self.0, current);
-        crate::block_g_fill::fill_block(&prev, &reference, &mut next, with_xor);
-        write_owned_block(&mut self.0, current, &next);
+        let prev = crate::wipe::Words(read_owned_block(&self.0, previous));
+        let reference = crate::wipe::Words(read_owned_block(&self.0, reference));
+        let mut next = crate::wipe::Words(read_owned_block(&self.0, current));
+        crate::block_g_fill::fill_block(&prev.0, &reference.0, &mut next.0, with_xor);
+        write_owned_block(&mut self.0, current, &next.0);
         #[cfg(verus_keep_ghost)]
         proof! { reveal(fill_result); }
     }

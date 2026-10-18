@@ -202,23 +202,23 @@ pub fn blake2b_long(out_len: usize, parts: &[&[u8]]) -> Vec<u8> {
     let len_le = h_prime_length(out_len as u32);
 
     if out_len <= 64 {
-        let full = blake2b_prefixed(out_len, &len_le, parts);
+        let full = crate::wipe::Bytes(blake2b_prefixed(out_len, &len_le, parts));
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(long_model::h_prime);
         }
-        let mut out = Vec::with_capacity(out_len);
-        out.extend_from_slice(&full[..out_len]);
-        return out;
+        let mut out = crate::wipe::ByteVec(Vec::with_capacity(out_len));
+        out.0.extend_from_slice(&full.0[..out_len]);
+        return out.into_inner();
     }
 
-    let mut out = Vec::with_capacity(out_len);
+    let mut out = crate::wipe::ByteVec(Vec::with_capacity(out_len));
 
-    let mut v = blake2b_prefixed(64, &len_le, parts);
-    out.extend_from_slice(&v[..32]);
+    let mut v = crate::wipe::Bytes(blake2b_prefixed(64, &len_le, parts));
+    out.0.extend_from_slice(&v.0[..32]);
     #[cfg(verus_keep_ghost)]
     proof_decl! {
-        let ghost seed = v@;
+        let ghost seed = v.0@;
         let ghost mut completed = 1nat;
     }
     #[cfg(verus_keep_ghost)]
@@ -240,14 +240,14 @@ pub fn blake2b_long(out_len: usize, parts: &[&[u8]]) -> Vec<u8> {
                     + model::blake2b_parts_prefix(parts@, parts@.len())),
             1 <= completed,
             32 < remaining <= out_len,
-            out.len() as int == 32 * completed,
-            out.len() as int + remaining as int == out_len as int,
-            out@ == long_model::output_prefix(seed, completed),
-            v@ == long_model::chain(seed, (completed - 1) as nat),
+            out.0.len() as int == 32 * completed,
+            out.0.len() as int + remaining as int == out_len as int,
+            out.0@ == long_model::output_prefix(seed, completed),
+            v.0@ == long_model::chain(seed, (completed - 1) as nat),
         decreases remaining,
     ))]
     while remaining > 64 {
-        let input: &[u8] = &v;
+        let input: &[u8] = &v.0;
         let single: [&[u8]; 1] = [input];
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -257,16 +257,16 @@ pub fn blake2b_long(out_len: usize, parts: &[&[u8]]) -> Vec<u8> {
             long_model::chain_next(seed, (completed - 1) as nat);
             long_model::output_prefix_extend(seed, completed);
         }
-        let next = blake2b(64, &single);
+        let next = crate::wipe::Bytes(blake2b(64, &single));
         v = next;
-        out.extend_from_slice(&v[..32]);
+        out.0.extend_from_slice(&v.0[..32]);
         remaining -= 32;
         #[cfg(verus_keep_ghost)]
         proof! {
             completed = completed + 1;
         }
     }
-    let input: &[u8] = &v;
+    let input: &[u8] = &v.0;
     let single: [&[u8]; 1] = [input];
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -275,15 +275,15 @@ pub fn blake2b_long(out_len: usize, parts: &[&[u8]]) -> Vec<u8> {
         assert(model::blake2b_parts_prefix(single@, 1) == input@);
         assert((out_len as int + 31) / 32 - 2 == completed);
     }
-    let last = blake2b(remaining, &single);
-    out.extend_from_slice(&last[..remaining]);
+    let last = crate::wipe::Bytes(blake2b(remaining, &single));
+    out.0.extend_from_slice(&last.0[..remaining]);
 
-    debug_assert!(out.len() == out_len);
+    debug_assert!(out.0.len() == out_len);
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(long_model::h_prime);
     }
-    out
+    out.into_inner()
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

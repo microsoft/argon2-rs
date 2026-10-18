@@ -58,8 +58,8 @@ pub(crate) fn permute_rows(words: &mut [u64; 128]) {
             words@ == specs::permute_rows_prefix(old(words)@, row as nat),
     ))]
     for row in 0..8 {
-        let gathered = gather_row(words, row);
-        let output = block_primitives::permute(gathered);
-        scatter_row(words, row, &output);
+        let gathered = crate::wipe::Words(gather_row(words, row));
+        let output = crate::wipe::Words(block_primitives::permute(&gathered.0));
+        scatter_row(words, row, &output.0);
     }
 }

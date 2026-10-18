@@ -77,17 +77,17 @@ separate local Verus source worktree at `89f8d65` and its rebuilt vstd
 (`0.2026.10.07.89f8d65.dirty`), which contains the proposed mapping. That mapping
 is unmerged and trusted; a passing `--no-cheating` application gate does not
 prove the allocator implementation.
-The current strict gate reports **62**, **8**, **11**, **11**, **13**, **21**,
-**18**, and **8 verified, 0 errors**, respectively, for the combined, scalar,
+The current strict gate reports **62**, **8**, **12**, **12**, **14**, **22**,
+**19**, and **8 verified, 0 errors**, respectively, for the combined, scalar,
 row, one-column, eight-column, full-G, BLAKE2b-block, and BLAKE2b-table roots.
-The BLAKE2b buffer/update-step/finalize root reports **23 verified, 0 errors**.
-The production update/streaming-composition root reports **41 verified, 0 errors**.
-The public multipart/prefixed API and H-prime root reports **55 verified, 0 errors**.
-The checked H0/parameter-adapter root reports **120 verified, 0 errors**.
+The BLAKE2b buffer/update-step/finalize root reports **24 verified, 0 errors**.
+The production update/streaming-composition root reports **42 verified, 0 errors**.
+The public multipart/prefixed API and H-prime root reports **56 verified, 0 errors**.
+The checked H0/parameter-adapter root reports **121 verified, 0 errors**.
 The parameter-validation root reports **63 verified, 0 errors**. These roots
 import existing core/geometry proofs and overlap; counts are not new coverage totals.
-The seed/block/flat-arena initialization root reports **69 verified, 0 errors**.
-The real owner/constructor root reports **156 verified, 0 errors** including
+The seed/block/flat-arena initialization root reports **70 verified, 0 errors**.
+The real owner/constructor root reports **157 verified, 0 errors** including
 imported G/core/BLAKE2b helpers, with the local vstd mapping. It proves the
 parameter-checking geometry/allocation/initialization adapter and the constructor's
 exact length and zero contents on `Ok`, not allocation success or allocator
@@ -109,7 +109,7 @@ the reference selector proves `ref` is in bounds and `ref != curr` after
 `pseudo_rand` is available. The runtime debug assertion remains as a guard.
 Both selectors additionally prove exact predecessor/reference-position model
 agreement, not only bounds and current-block exclusion.
-The address root reports **30 verified, 0 errors**: it proves exact address-input
+The address root reports **31 verified, 0 errors**: it proves exact address-input
 field encoding with a zero counter/tail, the production
 counter increment (under `counter < u64::MAX`) and composes two real scalar G
 calls into the address-block transition model. The same-source `next_addresses`
@@ -117,17 +117,17 @@ helpers are wired into the walker. Initialization at index 0/2, per-index
 regeneration/word selection, canonical destination-independent address blocks,
 and the successor counter relation are proved. The scheduling helper discharges
 counter overflow internally from its u32-index invariant. The segment root
-reports **180 verified, 0 errors** and establishes that invariant throughout
+reports **181 verified, 0 errors** and establishes that invariant throughout
 the real loop, exact predecessor/reference selection, callback preconditions
 and exact final arena equality with `segment_prefix`. Its scalar adapter proves
 the callback contract using the real arena/G implementation. The real scalar
 lane/slice/pass helpers additionally prove exact `traversal_prefix` final arena
 contents. Full caller discharge and tag finalization remain unproved; SIMD
 callbacks are not verified.
-The finalization root reports **166 verified, 0 errors** for the actual
+The finalization root reports **167 verified, 0 errors** for the actual
 wordwise XOR of every lane's last block, exact little-endian byte output, and
 composition with the already-proved H-prime API into `scalar_tag`.
-The whole scalar caller root reports **200 verified, 0 errors**: for accepted
+The whole scalar caller root reports **201 verified, 0 errors**: for accepted
 inputs, `hash_into_scalar` proves `Ok(()) ==> out == scalar_tag_model`, with
 `checked_h0`, successful arena construction, traversal, finalization and copy
 preconditions discharged internally. The production `Backend::Scalar` branch
@@ -135,6 +135,11 @@ delegates to this helper. This is not a guarantee that the operation returns
 `Ok`: allocation/execution may fail. The trusted local vstd allocation
 specification and independent RFC/model fidelity review remain explicit
 assumptions; SIMD and automatic backend selection are outside the theorem.
+All 19 roots were revalidated after the temporary-lifetime remediation.
+The same production bodies now mutate BLAKE2b state in place and use explicit
+cleanup owners. The imported cleanup module adds the functional
+`ByteVec::into_inner` obligation. Destructors, volatile writes, compiler
+copies and register erasure remain outside these functional proofs.
 The shared step-progress lemma adds one obligation to every root, not new G
 or whole-hash coverage.
 Counts are verifier obligations, not function or coverage counts.
@@ -203,7 +208,7 @@ The public constructor/update/finalize methods use a ghost-only closed state vie
 preserving private fields. The real multipart wrapper and private prefixed helper
 prove model agreement for arbitrary finite lists of parts: output parameter 1..=64
 and total message length representable in `u128`. No trusted bodies or assumptions
-were added. Production Drop/wiping remain unchanged and outside the checked
+were added. Production Drop/wiping remain outside the checked
 zeroization scope. Model fidelity still requires independent human review.
 Boundary and partition tests are regression evidence, not the binary theorem's proof.
 H-prime now agrees with the RFC-oriented length-prefix/digest-chain model for both

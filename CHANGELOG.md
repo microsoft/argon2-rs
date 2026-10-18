@@ -2,6 +2,11 @@
 
 ## 0.1.0 - Unreleased
 
+- Removed by-value BLAKE2b streaming state/buffer copies and added volatile
+  drop-time wiping for explicit scalar/SIMD scratch, H0, initialization,
+  finalization and internal tag owners, including panic unwinding. Compiler
+  copies, registers, caller-owned inputs/output and abort remain outside the
+  erasure guarantee. Updated same-source functional contracts and cleanup tests.
 - Reference-compatible Argon2d, Argon2i and Argon2id, versions 0x10 and 0x13.
 - Local BLAKE2b and variable-length hash implementation; no production crates.
 - Runtime SSE2, SSSE3 and AVX2 dispatch with a portable scalar path.

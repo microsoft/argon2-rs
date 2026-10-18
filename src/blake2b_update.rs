@@ -81,12 +81,7 @@ pub(crate) fn update(
             reveal(model::blake2b_update_next);
             trace = trace.push(model::blake2b_update_next(trace.last(), input@));
         }
-        let (next_h, next_counter, next_buffer, next_len, consumed) =
-            update_step(*h, *counter, *buffer, *buffered_len, &input[offset..]);
-        *h = next_h;
-        *counter = next_counter;
-        *buffer = next_buffer;
-        *buffered_len = next_len;
+        let consumed = update_step(h, counter, buffer, buffered_len, &input[offset..]);
         offset += consumed;
     }
     *data = &input[offset..];

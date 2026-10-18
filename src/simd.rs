@@ -6,7 +6,7 @@
 //!
 //! * the BlaMka rounds operate on 2 (SSE2/SSSE3) or 4 (AVX2) 64-bit lanes at
 //!   once, and SSSE3/AVX2 do the byte-aligned rotations with one shuffle;
-//! * the 1 KiB `state` is carried in registers from one block to the next:
+//! * the 1 KiB `state` is carried from one block to the next:
 //!   after block `i` is written, `state` already holds it, so block `i + 1`
 //!   never re-reads its predecessor from memory.
 //!
@@ -20,6 +20,8 @@
 //! 128/256-bit loads and stores through references to `[u64; 2]`/`[u64; 4]`
 //! (always valid for the access), and calls into the `#[target_feature]`
 //! entry points, each made only after runtime detection (SSE2 is baseline).
+//! Explicit scratch owners wipe their storage on drop, but cannot guarantee
+//! erasure of compiler-generated spills or register copies.
 
 #[cfg(target_arch = "x86")]
 use core::arch::x86::*;
@@ -31,6 +33,24 @@ use crate::core_impl::{walk_segment, Segment};
 use crate::memory::Memory;
 
 const W: usize = Block::SIZE_WORDS;
+
+struct Vectors128<const N: usize>([__m128i; N]);
+
+impl<const N: usize> Drop for Vectors128<N> {
+    fn drop(&mut self) {
+        // SAFETY: all-zero bits are valid for an integer vector; no CPU feature is needed.
+        crate::wipe::fill(&mut self.0, unsafe { core::mem::zeroed::<__m128i>() });
+    }
+}
+
+struct Vectors256<const N: usize>([__m256i; N]);
+
+impl<const N: usize> Drop for Vectors256<N> {
+    fn drop(&mut self) {
+        // SAFETY: all-zero bits are valid for an integer vector; no CPU feature is needed.
+        crate::wipe::fill(&mut self.0, unsafe { core::mem::zeroed::<__m256i>() });
+    }
+}
 
 // ---------------------------------------------------------------------------
 // 128-bit backends: `blamka-round-opt.h` without `__AVX2__`.
@@ -97,12 +117,11 @@ macro_rules! sse_backend {
         /// `BLAKE2_ROUND(A0, A1, B0, B1, C0, C1, D0, D1)`.
         #[inline]
         #[target_feature(enable = $feat)]
-        fn round128(mut v: [__m128i; 8]) -> [__m128i; 8] {
-            g128(&mut v);
-            diagonalize(&mut v);
-            g128(&mut v);
-            undiagonalize(&mut v);
-            v
+        fn round128(v: &mut [__m128i; 8]) {
+            g128(v);
+            diagonalize(v);
+            g128(v);
+            undiagonalize(v);
         }
 
         #[inline]
@@ -127,7 +146,7 @@ macro_rules! sse_backend {
             // `R = prev ^ ref` into `state`, and the value to XOR back in at the
             // end (`R`, or `R ^ next` for version 0x13 after pass 0) into `xy`,
             // in one loop as in the C. `from_fn` avoids zero-initializing `xy`.
-            let xy: State128 = if with_xor {
+            let xy = Vectors128::<{ W / 2 }>(if with_xor {
                 let n = next.as_chunks::<2>().0;
                 core::array::from_fn(|i| {
                     state[i] = _mm_xor_si128(state[i], load128(&r[i]));
@@ -138,11 +157,11 @@ macro_rules! sse_backend {
                     state[i] = _mm_xor_si128(state[i], load128(&r[i]));
                     state[i]
                 })
-            };
+            });
             // Rows: 16 contiguous words each.
             for i in 0..8 {
                 let b = 8 * i;
-                let r = round128([
+                let mut r = Vectors128([
                     state[b],
                     state[b + 1],
                     state[b + 2],
@@ -152,11 +171,12 @@ macro_rules! sse_backend {
                     state[b + 6],
                     state[b + 7],
                 ]);
-                state[b..b + 8].copy_from_slice(&r);
+                round128(&mut r.0);
+                state[b..b + 8].copy_from_slice(&r.0);
             }
             // Columns: words 2i, 2i+1, 2i+16, 2i+17, ..., 2i+112, 2i+113.
             for i in 0..8 {
-                let r = round128([
+                let mut r = Vectors128([
                     state[i],
                     state[8 + i],
                     state[16 + i],
@@ -166,25 +186,26 @@ macro_rules! sse_backend {
                     state[48 + i],
                     state[56 + i],
                 ]);
-                for (k, v) in r.into_iter().enumerate() {
-                    state[8 * k + i] = v;
+                round128(&mut r.0);
+                for (k, v) in r.0.iter().enumerate() {
+                    state[8 * k + i] = *v;
                 }
             }
-            for ((s, x), w) in state.iter_mut().zip(xy).zip(next.as_chunks_mut::<2>().0) {
-                *s = _mm_xor_si128(*s, x);
+            for ((s, x), w) in state.iter_mut().zip(xy.0.iter()).zip(next.as_chunks_mut::<2>().0) {
+                *s = _mm_xor_si128(*s, *x);
                 store128(w, *s);
             }
         }
 
         #[target_feature(enable = $feat)]
         pub(super) fn fill_segment(memory: &mut Memory, seg: &Segment) {
-            let mut state: State128 = [_mm_setzero_si128(); W / 2];
+            let mut state = Vectors128([_mm_setzero_si128(); W / 2]);
             walk_segment(memory, seg, |memory, prev, reference, curr, with_xor, first| {
                 if first {
-                    load_state(&mut state, memory.get(prev));
+                    load_state(&mut state.0, memory.get(prev));
                 }
                 let (reference, next) = memory.read_write(reference, curr);
-                fill_block(&mut state, reference, next, with_xor);
+                fill_block(&mut state.0, reference, next, with_xor);
             });
         }
 
@@ -197,9 +218,9 @@ macro_rules! sse_backend {
             out: &mut [u64; W],
             with_xor: bool,
         ) {
-            let mut state: State128 = [_mm_setzero_si128(); W / 2];
-            load_state(&mut state, prev);
-            fill_block(&mut state, reference, out, with_xor);
+            let mut state = Vectors128([_mm_setzero_si128(); W / 2]);
+            load_state(&mut state.0, prev);
+            fill_block(&mut state.0, reference, out, with_xor);
         }
     };
 }
@@ -493,20 +514,19 @@ fn undiagonalize2(v: &mut [__m256i; 8]) {
 /// `BLAKE2_ROUND_1` (row pass) or `BLAKE2_ROUND_2` (column pass).
 #[inline]
 #[target_feature(enable = "avx2")]
-fn round256<const COLUMN_PASS: bool>(mut v: [__m256i; 8]) -> [__m256i; 8] {
-    g256(&mut v);
+fn round256<const COLUMN_PASS: bool>(v: &mut [__m256i; 8]) {
+    g256(v);
     if COLUMN_PASS {
-        diagonalize2(&mut v)
+        diagonalize2(v)
     } else {
-        diagonalize1(&mut v)
+        diagonalize1(v)
     }
-    g256(&mut v);
+    g256(v);
     if COLUMN_PASS {
-        undiagonalize2(&mut v)
+        undiagonalize2(v)
     } else {
-        undiagonalize1(&mut v)
+        undiagonalize1(v)
     }
-    v
 }
 
 #[inline]
@@ -522,7 +542,7 @@ fn load_state256(state: &mut State256, src: &[u64; W]) {
 #[target_feature(enable = "avx2")]
 fn fill_block256(state: &mut State256, reference: &[u64; W], next: &mut [u64; W], with_xor: bool) {
     let r = reference.as_chunks::<4>().0;
-    let xy: State256 = if with_xor {
+    let xy = Vectors256::<{ W / 4 }>(if with_xor {
         let n = next.as_chunks::<4>().0;
         core::array::from_fn(|i| {
             state[i] = _mm256_xor_si256(state[i], load256(&r[i]));
@@ -533,11 +553,11 @@ fn fill_block256(state: &mut State256, reference: &[u64; W], next: &mut [u64; W]
             state[i] = _mm256_xor_si256(state[i], load256(&r[i]));
             state[i]
         })
-    };
+    });
     // Rows. `state[8i..8i+4]` is row 2i, `state[8i+4..8i+8]` is row 2i+1.
     for i in 0..4 {
         let b = 8 * i;
-        let r = round256::<false>([
+        let mut r = Vectors256([
             state[b],
             state[b + 4],
             state[b + 1],
@@ -547,19 +567,20 @@ fn fill_block256(state: &mut State256, reference: &[u64; W], next: &mut [u64; W]
             state[b + 3],
             state[b + 7],
         ]);
-        state[b] = r[0];
-        state[b + 4] = r[1];
-        state[b + 1] = r[2];
-        state[b + 5] = r[3];
-        state[b + 2] = r[4];
-        state[b + 6] = r[5];
-        state[b + 3] = r[6];
-        state[b + 7] = r[7];
+        round256::<false>(&mut r.0);
+        state[b] = r.0[0];
+        state[b + 4] = r.0[1];
+        state[b + 1] = r.0[2];
+        state[b + 5] = r.0[3];
+        state[b + 2] = r.0[4];
+        state[b + 6] = r.0[5];
+        state[b + 3] = r.0[6];
+        state[b + 7] = r.0[7];
     }
     // Columns. Lanes 0-1 of `state[i]` and lanes 0-1 of `state[4 + i]` are one
     // column group; lanes 2-3 are the next.
     for i in 0..4 {
-        let r = round256::<true>([
+        let mut r = Vectors256([
             state[i],
             state[4 + i],
             state[8 + i],
@@ -569,12 +590,13 @@ fn fill_block256(state: &mut State256, reference: &[u64; W], next: &mut [u64; W]
             state[24 + i],
             state[28 + i],
         ]);
-        for (k, v) in r.into_iter().enumerate() {
-            state[4 * k + i] = v;
+        round256::<true>(&mut r.0);
+        for (k, v) in r.0.iter().enumerate() {
+            state[4 * k + i] = *v;
         }
     }
-    for ((s, x), w) in state.iter_mut().zip(xy).zip(next.as_chunks_mut::<4>().0) {
-        *s = _mm256_xor_si256(*s, x);
+    for ((s, x), w) in state.iter_mut().zip(xy.0.iter()).zip(next.as_chunks_mut::<4>().0) {
+        *s = _mm256_xor_si256(*s, *x);
         store256(w, *s);
     }
 }
@@ -595,13 +617,13 @@ pub(crate) fn fill_segment_avx2(memory: &mut Memory, seg: &Segment) {
 /// The CPU must support AVX2.
 #[target_feature(enable = "avx2")]
 unsafe fn fill_segment_avx2_unchecked(memory: &mut Memory, seg: &Segment) {
-    let mut state: State256 = [_mm256_setzero_si256(); W / 4];
+    let mut state = Vectors256([_mm256_setzero_si256(); W / 4]);
     walk_segment(memory, seg, |memory, prev, reference, curr, with_xor, first| {
         if first {
-            load_state256(&mut state, memory.get(prev));
+            load_state256(&mut state.0, memory.get(prev));
         }
         let (reference, next) = memory.read_write(reference, curr);
-        fill_block256(&mut state, reference, next, with_xor);
+        fill_block256(&mut state.0, reference, next, with_xor);
     });
 }
 
@@ -609,6 +631,21 @@ unsafe fn fill_segment_avx2_unchecked(memory: &mut Memory, seg: &Segment) {
 mod tests {
     use super::*;
     use crate::block::compress;
+
+    #[test]
+    fn vector_owners_wipe_on_return_and_unwind() {
+        for panic in [false, true] {
+            let (result, events) = crate::wipe::observe(|| {
+                // SAFETY: all-zero integer vectors are valid on every target CPU.
+                let _small = Vectors128::<8>(unsafe { core::mem::zeroed() });
+                // SAFETY: the value is stored and wiped without executing AVX2 instructions.
+                let _large = Vectors256::<8>(unsafe { core::mem::zeroed() });
+                assert!(!panic, "exercise SIMD cleanup during unwinding");
+            });
+            assert_eq!(result.is_err(), panic);
+            assert_eq!(events, [(8, 32), (8, 16)]);
+        }
+    }
 
     fn pseudo_random_block(seed: u64) -> [u64; W] {
         let mut x = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;

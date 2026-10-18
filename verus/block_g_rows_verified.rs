@@ -1,6 +1,7 @@
 //! Verifies the row-wise loop helper used by the production scalar G body.
 
 #![feature(proc_macro_hygiene)]
+#![feature(cfg_eval)]
 #![verifier::exec_allows_no_decreases_clause]
 
 use vstd::prelude::*;
@@ -11,3 +12,5 @@ mod block_g;
 mod block_primitives;
 #[path = "../specs/mod.rs"]
 mod specs;
+#[path = "../src/wipe.rs"]
+mod wipe;

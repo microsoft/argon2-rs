@@ -13,6 +13,12 @@ use vstd::prelude::{verus_spec, verus_verify};
 #[repr(align(64))]
 pub(crate) struct Block(pub(crate) [u64; 128]);
 
+impl Drop for Block {
+    fn drop(&mut self) {
+        crate::wipe::words(&mut self.0);
+    }
+}
+
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 impl Block {
     pub(crate) const SIZE_BYTES: usize = 1024;
@@ -46,7 +52,7 @@ impl Block {
 #[inline(always)]
 #[cfg(test)]
 fn permute(v: &mut [u64; 16]) {
-    *v = crate::block_primitives::permute(*v);
+    *v = crate::block_primitives::permute(v);
 }
 
 /// Compression function `G(X, Y)` (spec section 3.4): `R = X xor Y`, apply

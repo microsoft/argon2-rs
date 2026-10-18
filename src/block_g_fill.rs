@@ -91,8 +91,8 @@ pub fn fill_block(
     next: &mut [u64; 128],
     with_xor: bool,
 ) {
-    let mut r = xor_inputs(prev, reference);
-    let tmp = prepare_tmp(&r, next, with_xor);
-    permute_block(&mut r);
-    xor_output(&tmp, &r, next);
+    let mut r = crate::wipe::Words(xor_inputs(prev, reference));
+    let tmp = crate::wipe::Words(prepare_tmp(&r.0, next, with_xor));
+    permute_block(&mut r.0);
+    xor_output(&tmp.0, &r.0, next);
 }
