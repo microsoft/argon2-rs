@@ -88,7 +88,7 @@ pub(crate) fn hash_into_with_backend(
             backend, algorithm, version, params, password, salt, secret, ad, out,
         );
     }
-    let h0 = crate::initial_hash::checked_h0(
+    let h0 = crate::wipe::Bytes(crate::initial_hash::checked_h0(
         algorithm,
         version,
         params,
@@ -97,12 +97,12 @@ pub(crate) fn hash_into_with_backend(
         secret,
         ad,
         out.len(),
-    )?;
+    )?);
     let backend = if backend.is_available() { backend } else { Backend::Scalar };
 
     let lanes = params.parallelism;
     let (mut memory, memory_blocks, lane_length, segment_length) =
-        Memory::zeroed_initialized(&h0, params, salt.len(), out.len())?;
+        Memory::zeroed_initialized(&h0.0, params, salt.len(), out.len())?;
 
     {
         for pass in 0..params.iterations {
@@ -134,17 +134,18 @@ pub(crate) fn hash_into_with_backend(
         }
     }
 
-    let tag = if backend == Backend::Scalar {
+    let tag = crate::wipe::ByteVec(if backend == Backend::Scalar {
         crate::core_final::scalar_tag(&memory, lanes, lane_length, out.len())
     } else {
         let mut final_block = Block::zero();
         for lane in 0..lanes {
             final_block.xor_with_slice(memory.get((lane * lane_length + lane_length - 1) as usize));
         }
-        blake2b_long(out.len(), &[&final_block.to_bytes()])
-    };
+        let bytes = crate::wipe::Bytes(final_block.to_bytes());
+        blake2b_long(out.len(), &[&bytes.0])
+    });
 
-    out.copy_from_slice(&tag);
+    out.copy_from_slice(&tag.0);
     Ok(())
 }
 

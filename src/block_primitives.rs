@@ -3,7 +3,7 @@
 //!
 //! These are the canonical executable bodies used by both ordinary Rust
 //! builds and Verus. Verus checks these leaves under their contracts; it does
-//! not verify the complete 1024-byte compression function G or SIMD kernels.
+//! compose with the full scalar G/caller proof; SIMD kernels remain outside it.
 
 #[cfg(verus_keep_ghost)]
 use crate::specs;
@@ -49,7 +49,7 @@ pub fn gb(a: u64, b: u64, c: u64, d: u64) -> (u64, u64, u64, u64) {
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result@ == specs::permute(v@),
 ))]
-pub fn permute(v: [u64; 16]) -> [u64; 16] {
+pub fn permute(v: &[u64; 16]) -> [u64; 16] {
     let (v0, v4, v8, v12) = gb(v[0], v[4], v[8], v[12]);
     let (v1, v5, v9, v13) = gb(v[1], v[5], v[9], v[13]);
     let (v2, v6, v10, v14) = gb(v[2], v[6], v[10], v[14]);

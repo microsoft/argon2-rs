@@ -2,6 +2,15 @@
 
 ## 0.1.0 - Unreleased
 
+- Consolidated same-source proofs into a pinned upstream Cargo-Verus package
+  and CI gate; vstd includes merged upstream PR #3094. Removed scalar-loop
+  termination opt-outs, separated canonical RFC semantics from proof-only
+  relations, added RFC traceability and checked notation/full-pass equivalences.
+- Removed by-value BLAKE2b streaming state/buffer copies and added volatile
+  drop-time wiping for explicit scalar/SIMD scratch, H0, initialization,
+  finalization and internal tag owners, including panic unwinding. Compiler
+  copies, registers, caller-owned inputs/output and abort remain outside the
+  erasure guarantee. Updated same-source functional contracts and cleanup tests.
 - Reference-compatible Argon2d, Argon2i and Argon2id, versions 0x10 and 0x13.
 - Local BLAKE2b and variable-length hash implementation; no production crates.
 - Runtime SSE2, SSSE3 and AVX2 dispatch with a portable scalar path.
@@ -38,8 +47,9 @@
 	Wired the owning arena to the helper without changing allocation/Drop policy;
 	owning wrapper/caller and full traversal/tag proofs remain incomplete.
 - Proved the successful `Memory::zeroed` result shape (exact word length and
-	zero contents) using a proposed, unmerged vstd `try_reserve_exact`
-	content-preservation specification. The allocator implementation and guaranteed
+	zero contents) using the vstd `try_reserve_exact` content-preservation
+	specification (initially proposed locally; now upstream in merged PR #3094).
+	The allocator implementation and guaranteed
 	allocation success remain unproved; custom-allocator review and full caller/tag
 	composition are still pending. Allocation/Drop policy is unchanged.
 - Proved actual owning initialization through a closed ghost word view and exact

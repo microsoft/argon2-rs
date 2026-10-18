@@ -1,16 +1,42 @@
+//! Canonical Argon2/BLAKE2b semantics. See README.md for the complete audit boundary.
+
+pub mod digest;
+pub mod h_prime;
+pub mod initial_hash;
+pub mod initialization;
+
 use vstd::prelude::*;
 
 verus! {
 
+// BLAKE2b's w = 64 (RFC 7693 section 2.1); Argon2 also uses 64-bit words.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-2.1
+pub const WORD_BITS: u32 = 64;
+pub const WORD_MODULUS: u128 = 0x1_0000_0000_0000_0000;
+pub const LOW_WORD_MODULUS: u64 = 0x1_0000_0000;
+pub const WORD_MASK: u64 = 0xffff_ffff_ffff_ffff;
+
+// RFC 9106 section 2: trunc(a) retains the low 32 bits.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-2
+pub open spec fn trunc(x: u64) -> u64 {
+    x % LOW_WORD_MODULUS
+}
+
+// BlaMka arithmetic within GB; RFC 9106 section 3.6.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.6
 pub open spec fn blamka(x: u64, y: u64) -> u64 {
-    ((x as int + y as int + 2 * (x % 0x1_0000_0000) as int
-        * (y % 0x1_0000_0000) as int) % 0x1_0000_0000_0000_0000) as u64
+    ((x as int + y as int + 2 * trunc(x) as int
+        * trunc(y) as int) % (WORD_MODULUS as int)) as u64
 }
 
+// fixed-width rotation notation; RFC 7693 section 2.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-2
 pub open spec fn rotate(x: u64, n: u32) -> u64 {
-    (x >> n) | (x << (64 - n))
+    (x >> n) | (x << (WORD_BITS - n))
 }
 
+// Argon2 GB, not BLAKE2b G; RFC 9106 section 3.6.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.6
 pub open spec fn gb(a: u64, b: u64, c: u64, d: u64) -> (u64, u64, u64, u64) {
     let a = blamka(a, b);
     let d = rotate(d ^ a, 32);
@@ -23,6 +49,8 @@ pub open spec fn gb(a: u64, b: u64, c: u64, d: u64) -> (u64, u64, u64, u64) {
     (a, b, c, d)
 }
 
+// permutation P; RFC 9106 section 3.6.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.6
 pub open spec fn permute(v: Seq<u64>) -> Seq<u64>
     recommends v.len() == 16,
 {
@@ -37,10 +65,14 @@ pub open spec fn permute(v: Seq<u64>) -> Seq<u64>
     seq![v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15]
 }
 
+// addition modulo 2^w, specialized to w = 64; RFC 7693 section 2.1.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-2.1
 pub open spec fn blake2b_add(x: u64, y: u64) -> u64 {
-    ((x as int + y as int) % 0x1_0000_0000_0000_0000) as u64
+    ((x as int + y as int) % (WORD_MODULUS as int)) as u64
 }
 
+// BLAKE2b initialization vector; RFC 7693 section 2.6.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-2.6
 pub open spec fn blake2b_iv() -> Seq<u64> {
     seq![
         0x6a09e667f3bcc908u64, 0xbb67ae8584caa73b, 0x3c6ef372fe94f82b,
@@ -49,6 +81,8 @@ pub open spec fn blake2b_iv() -> Seq<u64> {
     ]
 }
 
+// SIGMA schedule, expanded to twelve rounds; RFC 7693 section 2.7.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-2.7
 pub open spec fn blake2b_sigma() -> Seq<[usize; 16]> {
     seq![
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
@@ -66,6 +100,8 @@ pub open spec fn blake2b_sigma() -> Seq<[usize; 16]> {
     ]
 }
 
+// BLAKE2b mixing G; RFC 7693 section 3.1.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.1
 pub open spec fn blake2b_g(
     a: u64,
     b: u64,
@@ -85,6 +121,8 @@ pub open spec fn blake2b_g(
     (a, b, c, d)
 }
 
+// G applied to selected state words; RFC 7693 section 3.1.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.1
 pub open spec fn blake2b_g_update(
     state: Seq<u64>,
     a_index: int,
@@ -109,18 +147,24 @@ pub open spec fn blake2b_g_update(
         .update(d_index, d)
 }
 
+// index bounds required by the schedule; RFC 7693 section 2.7.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-2.7
 pub open spec fn valid_blake2b_round_sigma(sigma: Seq<usize>) -> bool
     recommends sigma.len() == 16,
 {
     forall|i: int| 0 <= i < 16 ==> #[trigger] sigma[i] < 16
 }
 
+// shape requirements for the expanded schedule; RFC 7693 section 2.7.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-2.7
 pub open spec fn valid_blake2b_sigma(sigma: Seq<[usize; 16]>) -> bool
     recommends sigma.len() == 12,
 {
     forall|r: int| 0 <= r < 12 ==> #[trigger] valid_blake2b_round_sigma(sigma[r]@)
 }
 
+// one compression round; RFC 7693 section 3.2.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.2
 pub open spec fn blake2b_round(
     state: Seq<u64>,
     message: Seq<u64>,
@@ -139,6 +183,8 @@ pub open spec fn blake2b_round(
     blake2b_g_update(v, 3, 4, 9, 14, message[sigma[14] as int], message[sigma[15] as int])
 }
 
+// F initialization, counter and final-flag XOR; RFC 7693 section 3.2.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.2
 pub open spec fn blake2b_initial_v(
     h: Seq<u64>,
     iv: Seq<u64>,
@@ -150,9 +196,11 @@ pub open spec fn blake2b_initial_v(
     let v = Seq::new(16, |i: int| if i < 8 { h[i] } else { iv[i - 8] });
     let v = v.update(12, v[12] ^ (counter as u64));
     let v = v.update(13, v[13] ^ ((counter >> 64) as u64));
-    if last { v.update(14, !v[14]) } else { v }
+    if last { v.update(14, v[14] ^ WORD_MASK) } else { v }
 }
 
+// recursive composition of F rounds; part of the audited semantics; RFC 7693 section 3.2.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.2
 pub open spec fn blake2b_rounds_prefix(
     state: Seq<u64>,
     message: Seq<u64>,
@@ -174,12 +222,16 @@ pub open spec fn blake2b_rounds_prefix(
     }
 }
 
+// F final chaining-state fold; RFC 7693 section 3.2.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.2
 pub open spec fn blake2b_fold(h: Seq<u64>, state: Seq<u64>) -> Seq<u64>
     recommends h.len() == 8, state.len() == 16,
 {
     Seq::new(8, |i: int| h[i] ^ state[i] ^ state[i + 8])
 }
 
+// F specialized to the RFC IV and schedule; RFC 7693 section 3.2.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.2
 pub open spec fn blake2b_rfc_compress_state(
     h: Seq<u64>,
     message: Seq<u64>,
@@ -191,6 +243,8 @@ pub open spec fn blake2b_rfc_compress_state(
     )
 }
 
+// little-endian message words; RFC 7693 section 2.4.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-2.4
 pub open spec fn blake2b_decode_block(block: Seq<u8>) -> Seq<u64>
     recommends block.len() == 128,
 {
@@ -206,6 +260,8 @@ pub open spec fn blake2b_decode_block(block: Seq<u8>) -> Seq<u64>
     })
 }
 
+// F on a decoded 128-byte block; RFC 7693 section 3.2.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.2
 pub open spec fn blake2b_compress_block(
     h: Seq<u64>,
     block: Seq<u8>,
@@ -217,18 +273,24 @@ pub open spec fn blake2b_compress_block(
     blake2b_rfc_compress_state(h, blake2b_decode_block(block), counter, last)
 }
 
+// zero padding of the final block; RFC 7693 section 3.3.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.3
 pub open spec fn blake2b_pad_final_block(buffer: Seq<u8>, buffered_len: nat) -> Seq<u8>
     recommends buffer.len() == 128, buffered_len <= 128,
 {
     Seq::new(128, |i: int| if i < buffered_len { buffer[i] } else { 0u8 })
 }
 
+// little-endian digest serialization before truncation; RFC 7693 section 3.3.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.3
 pub open spec fn blake2b_serialize_state(state: Seq<u64>) -> Seq<u8>
     recommends state.len() == 8,
 {
     Seq::new(64, |i: int| (state[i / 8] >> (8 * (i % 8))) as u8)
 }
 
+// unkeyed parameter initialization, kk = 0; RFC 7693 section 3.3.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.3
 pub open spec fn blake2b_initial_h(out_len: nat) -> Seq<u64>
     recommends 1 <= out_len <= 64,
 {
@@ -239,6 +301,8 @@ pub open spec fn blake2b_initial_h(out_len: nat) -> Seq<u64>
     })
 }
 
+// final block and untruncated digest; RFC 7693 section 3.3.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.3
 pub open spec fn blake2b_finalize_result(
     h: Seq<u64>,
     counter: u128,
@@ -255,85 +319,8 @@ pub open spec fn blake2b_finalize_result(
     blake2b_serialize_state(state)
 }
 
-pub open spec fn blake2b_buffer_append_prefix(
-    before: Seq<u8>,
-    start: int,
-    data: Seq<u8>,
-    copied: int,
-) -> Seq<u8>
-    recommends before.len() == 128, 0 <= start <= 128,
-        start + data.len() <= 128, 0 <= copied <= data.len(),
-{
-    Seq::new(128, |i: int| {
-        if start <= i && i < start + copied {
-            data[i - start]
-        } else {
-            before[i]
-        }
-    })
-}
-
-pub open spec fn blake2b_buffer_append(
-    before: Seq<u8>,
-    start: int,
-    data: Seq<u8>,
-) -> Seq<u8>
-    recommends before.len() == 128, 0 <= start <= 128,
-        start + data.len() <= 128,
-{
-    blake2b_buffer_append_prefix(before, start, data, data.len() as int)
-}
-
-pub open spec fn blake2b_update_take(buffered_len: nat, input_len: nat) -> nat
-    recommends buffered_len <= 128,
-{
-    let available = (128nat - buffered_len) as nat;
-    if input_len < available { input_len } else { available }
-}
-
-pub open spec fn blake2b_update_step(
-    h: Seq<u64>,
-    counter: u128,
-    buffer: Seq<u8>,
-    buffered_len: nat,
-    input: Seq<u8>,
-) -> (Seq<u64>, u128, Seq<u8>, nat, nat)
-    recommends h.len() == 8, buffer.len() == 128,
-        buffered_len <= 128, input.len() > 0,
-        counter as int + buffered_len as int + input.len() as int <= u128::MAX as int,
-        buffered_len < 128 || counter <= u128::MAX - 128,
-{
-    let (next_h, next_counter, next_len) = if buffered_len == 128 {
-        (
-            blake2b_compress_block(h, buffer, (counter as int + 128) as u128, false),
-            (counter as int + 128) as u128,
-            0nat,
-        )
-    } else {
-        (h, counter, buffered_len)
-    };
-    let take = blake2b_update_take(next_len, input.len());
-    let chunk = Seq::new(take, |i: int| input[i]);
-    let next_buffer = blake2b_buffer_append(buffer, next_len as int, chunk);
-    (next_h, next_counter, next_buffer, next_len + take, take)
-}
-
-pub proof fn blake2b_update_step_progress(
-    h: Seq<u64>, counter: u128, buffer: Seq<u8>, buffered_len: nat, input: Seq<u8>,
-)
-    requires h.len() == 8, buffer.len() == 128, buffered_len <= 128,
-        input.len() > 0,
-        counter as int + buffered_len as int + input.len() as int <= u128::MAX as int,
-    ensures ({
-        let next = blake2b_update_step(h, counter, buffer, buffered_len, input);
-        &&& 0 < next.4 <= input.len()
-        &&& next.3 <= 128
-        &&& next.1 as int + next.3 as int
-            == counter as int + buffered_len as int + next.4 as int
-    }),
-{
-}
-
+// F with explicit IV and schedule parameters; RFC 7693 section 3.2.
+// https://www.rfc-editor.org/rfc/rfc7693.html#section-3.2
 pub open spec fn blake2b_compress_state(
     h: Seq<u64>,
     message: Seq<u64>,
@@ -350,130 +337,86 @@ pub open spec fn blake2b_compress_state(
     blake2b_fold(h, state)
 }
 
+// row layout of G; RFC 9106 section 3.5.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.5
 pub open spec fn gather_row(words: Seq<u64>, row: int) -> Seq<u64>
     recommends words.len() == 128, 0 <= row < 8,
 {
     Seq::new(16, |i: int| words[16 * row + i])
 }
 
-pub open spec fn scatter_row_prefix(
-    before: Seq<u64>,
-    row: int,
-    completed_words: int,
-    output: Seq<u64>,
-) -> Seq<u64>
-    recommends before.len() == 128, output.len() == 16,
-        0 <= row < 8, 0 <= completed_words <= 16,
-{
-    Seq::new(128, |i: int| {
-        if i / 16 == row && i % 16 < completed_words {
-            output[i % 16]
-        } else {
-            before[i]
-        }
-    })
-}
-
+// P applied to one complete row; RFC 9106 section 3.5.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.5
 pub open spec fn permute_one_row(words: Seq<u64>, row: int) -> Seq<u64>
     recommends words.len() == 128, 0 <= row < 8,
 {
-    scatter_row_prefix(words, row, 16, permute(gather_row(words, row)))
+    Seq::new(128, |i: int| if i / 16 == row {
+        permute(gather_row(words, row))[i % 16]
+    } else { words[i] })
 }
 
-pub open spec fn permute_rows_prefix(words: Seq<u64>, completed: nat) -> Seq<u64>
-    recommends words.len() == 128, completed <= 8,
-    decreases completed,
-{
-    if completed == 0 {
-        words
-    } else {
-        permute_one_row(
-            permute_rows_prefix(words, (completed - 1nat) as nat),
-            (completed - 1nat) as int,
-        )
-    }
-}
-
+// paired-word column layout of G; RFC 9106 section 3.5.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.5
 pub open spec fn gather_column(words: Seq<u64>, column: int) -> Seq<u64>
     recommends words.len() == 128, 0 <= column < 8,
 {
     Seq::new(16, |i: int| words[16 * (i / 2) + 2 * column + i % 2])
 }
 
-pub open spec fn scatter_column_prefix(
-    before: Seq<u64>,
-    column: int,
-    completed_rows: int,
-    output: Seq<u64>,
-) -> Seq<u64>
-    recommends before.len() == 128, output.len() == 16,
-        0 <= column < 8, 0 <= completed_rows <= 8,
-{
-    Seq::new(128, |i: int| {
-        let row = i / 16;
-        let col = (i % 16) / 2;
-        let half = i % 2;
-        if col == column && row < completed_rows {
-            output[2 * row + half]
-        } else {
-            before[i]
-        }
-    })
-}
-
+// P applied to one complete column; RFC 9106 section 3.5.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.5
 pub open spec fn permute_one_column(words: Seq<u64>, column: int) -> Seq<u64>
     recommends words.len() == 128, 0 <= column < 8,
 {
-    scatter_column_prefix(words, column, 8, permute(gather_column(words, column)))
+    Seq::new(128, |i: int| if (i % 16) / 2 == column {
+        permute(gather_column(words, column))[2 * (i / 16) + i % 2]
+    } else { words[i] })
 }
 
-pub open spec fn permute_columns_prefix(words: Seq<u64>, completed: nat) -> Seq<u64>
-    recommends words.len() == 128, completed <= 8,
-    decreases completed,
-{
-    if completed == 0 {
-        words
-    } else {
-        permute_one_column(
-            permute_columns_prefix(words, (completed - 1nat) as nat),
-            (completed - 1nat) as int,
-        )
-    }
-}
-
-pub open spec fn xor_words_prefix(
-    left: Seq<u64>,
-    right: Seq<u64>,
-    completed: int,
-) -> Seq<u64>
-    recommends left.len() == 128, right.len() == 128, 0 <= completed <= 128,
-{
-    Seq::new(128, |i: int| {
-        if i < completed {
-            left[i] ^ right[i]
-        } else {
-            left[i]
-        }
-    })
-}
-
+// block XOR; RFC 9106 section 3.5.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.5
 pub open spec fn xor_words(left: Seq<u64>, right: Seq<u64>) -> Seq<u64>
     recommends left.len() == 128, right.len() == 128,
 {
     Seq::new(128, |i: int| left[i] ^ right[i])
 }
 
-pub open spec fn replace_prefix(
-    before: Seq<u64>,
-    replacement: Seq<u64>,
-    completed: int,
-) -> Seq<u64>
-    recommends before.len() == 128, replacement.len() == 128,
-        0 <= completed <= 128,
+// all eight row permutations; RFC 9106 section 3.5.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.5
+#[verifier::opaque]
+pub open spec fn permute_rows(words: Seq<u64>) -> Seq<u64>
+    recommends words.len() == 128,
 {
-    Seq::new(128, |i: int| if i < completed { replacement[i] } else { before[i] })
+    let words = permute_one_row(words, 0);
+    let words = permute_one_row(words, 1);
+    let words = permute_one_row(words, 2);
+    let words = permute_one_row(words, 3);
+    let words = permute_one_row(words, 4);
+    let words = permute_one_row(words, 5);
+    let words = permute_one_row(words, 6);
+    let words = permute_one_row(words, 7);
+    words
 }
 
+// all eight column permutations; RFC 9106 section 3.5.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.5
+#[verifier::opaque]
+pub open spec fn permute_columns(words: Seq<u64>) -> Seq<u64>
+    recommends words.len() == 128,
+{
+    let words = permute_one_column(words, 0);
+    let words = permute_one_column(words, 1);
+    let words = permute_one_column(words, 2);
+    let words = permute_one_column(words, 3);
+    let words = permute_one_column(words, 4);
+    let words = permute_one_column(words, 5);
+    let words = permute_one_column(words, 6);
+    let words = permute_one_column(words, 7);
+    words
+}
+
+// steps 5-6: G from section 3.5 plus optional old-block XOR; RFC 9106 section 3.2.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub open spec fn fill_block_result(
     prev: Seq<u64>,
     reference: Seq<u64>,
@@ -484,9 +427,11 @@ pub open spec fn fill_block_result(
 {
     let r = xor_words(prev, reference);
     let tmp = if with_xor { xor_words(r, old_next) } else { r };
-    xor_words(tmp, permute_columns_prefix(permute_rows_prefix(r, 8), 8))
+    xor_words(tmp, permute_columns(permute_rows(r)))
 }
 
+// steps 5-6: preceding block, including lane wrap; RFC 9106 section 3.2.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub open spec fn predecessor_position(
     lane: u32, lane_length: u32, slice: u32, segment: u32, index: u32,
 ) -> int {
@@ -495,6 +440,8 @@ pub open spec fn predecessor_position(
         + if column == 0 { lane_length as int - 1 } else { column - 1 }
 }
 
+// lane and block selection from J1/J2; RFC 9106 section 3.4.2.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.4.2
 pub open spec fn reference_position(
     pass: u32, slice: u32, segment: u32, lane_length: u32,
     lanes: u32, lane: u32, index: u32, pseudo_rand: u64,
@@ -505,19 +452,27 @@ pub open spec fn reference_position(
         + index_alpha(pass, slice, segment, index, pseudo_rand as u32, reference_lane == lane)
 }
 
+// lane, memory and pass domain; API length checks are separate; RFC 9106 section 3.1.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.1
 pub open spec fn valid_params(lanes: u32, memory: u32, passes: u32) -> bool {
     1 <= lanes <= 0x00ff_ffff && 8 * lanes <= memory && passes >= 1
 }
 
+// step 2: requested memory rounded to m-prime; RFC 9106 section 3.2.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 pub open spec fn memory_blocks(memory: u32, lanes: u32) -> int {
     (memory as int / (4 * lanes)) * (4 * lanes)
 }
 
+// valid initialized segment positions; RFC 9106 section 3.4.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.4
 pub open spec fn valid_position(pass: u32, slice: u32, segment: u32, index: u32) -> bool {
     2 <= segment <= 0x3fff_ffff && slice < 4 && index < segment
         && (pass == 0 && slice == 0 ==> index >= 2)
 }
 
+// eligible reference area size; RFC 9106 section 3.4.2.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.4.2
 pub open spec fn reference_area(pass: u32, slice: u32, segment: u32, index: u32, same_lane: bool) -> int {
     if pass == 0 {
         if slice == 0 { index as int - 1 }
@@ -527,6 +482,8 @@ pub open spec fn reference_area(pass: u32, slice: u32, segment: u32, index: u32,
     else { 3 * segment - if index == 0 { 1int } else { 0int } }
 }
 
+// nonuniform J1 mapping and reference-area offset; RFC 9106 section 3.4.2.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.4.2
 pub open spec fn index_alpha(pass: u32, slice: u32, segment: u32, index: u32, j1: u32, same_lane: bool) -> int {
     let area = reference_area(pass, slice, segment, index, same_lane);
     let relative = area - 1 - (area * ((j1 as int * j1 as int) / 0x1_0000_0000)) / 0x1_0000_0000;

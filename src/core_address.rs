@@ -7,6 +7,8 @@ use vstd::prelude::*;
 
 #[cfg(verus_keep_ghost)]
 verus! {
+// RFC 9106 section 3.4.1.2: pass/lane/slice/memory/passes/type/counter encoding.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.4.1.2
 pub open spec fn address_input(
     pass: u32, lane: u32, slice: u32, blocks: u32, passes: u32, algorithm: u32,
 ) -> Seq<u64> {
@@ -20,16 +22,22 @@ pub open spec fn address_input(
 }
 
 #[verifier::opaque]
+// RFC 9106 section 3.4.1.2: the zero block used for address generation.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.4.1.2
 pub open spec fn zero_words() -> Seq<u64> {
     Seq::new(128, |_index: int| 0u64)
 }
 
 #[verifier::opaque]
+// RFC 9106 section 3.5: G without the later-pass destination XOR.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.5
 pub open spec fn address_g(previous: Seq<u64>, reference: Seq<u64>, old_next: Seq<u64>) -> Seq<u64> {
     specs::fill_block_result(previous, reference, old_next, false)
 }
 
 #[verifier::opaque]
+// RFC 9106 section 3.4.1.2: G(zero, G(zero, encoded input)).
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.4.1.2
 pub open spec fn generated_address_block(input: Seq<u64>, old_address: Seq<u64>) -> Seq<u64> {
     address_g(zero_words(), address_g(zero_words(), input, zero_words()), old_address)
 }

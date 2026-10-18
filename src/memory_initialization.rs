@@ -5,7 +5,7 @@ use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires column < 2,
-    ensures result@ == model::seed(h0@, column, lane),
+    ensures result@ == crate::specs::initialization::seed(h0@, column, lane),
 ))]
 pub(crate) fn seed(h0: &[u8; 64], column: u32, lane: u32) -> [u8; 72] {
     let column_bytes = crate::blake2b::h_prime_length(column);
@@ -13,11 +13,11 @@ pub(crate) fn seed(h0: &[u8; 64], column: u32, lane: u32) -> [u8; 72] {
     let mut output = [0u8; 72];
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant column < 2,
-            column_bytes@ == crate::blake2b_long_model::length_prefix(column),
-            lane_bytes@ == crate::blake2b_long_model::length_prefix(lane),
+            column_bytes@ == crate::specs::h_prime::length_prefix(column),
+            lane_bytes@ == crate::specs::h_prime::length_prefix(lane),
             forall|position: int| 0 <= position < 72 ==>
             output@[position] == if position < index as int {
-                model::seed(h0@, column, lane)[position]
+                crate::specs::initialization::seed(h0@, column, lane)[position]
             } else { 0u8 },
         decreases 72 - index,
     ))]
@@ -35,7 +35,7 @@ pub(crate) fn seed(h0: &[u8; 64], column: u32, lane: u32) -> [u8; 72] {
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires bytes.len() == 1024,
-    ensures result@ == model::decode(bytes@),
+    ensures result@ == crate::specs::initialization::decode(bytes@),
 ))]
 pub(crate) fn decode(bytes: &[u8]) -> [u64; 128] {
     let mut output = [0u64; 128];
@@ -43,7 +43,7 @@ pub(crate) fn decode(bytes: &[u8]) -> [u64; 128] {
         invariant bytes.len() == 1024,
             forall|position: int| 0 <= position < 128 ==>
             output@[position] == if position < index as int {
-                model::decode(bytes@)[position]
+                crate::specs::initialization::decode(bytes@)[position]
             } else { 0u64 },
         decreases 128 - index,
     ))]
@@ -63,11 +63,11 @@ pub(crate) fn decode(bytes: &[u8]) -> [u64; 128] {
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires column < 2,
-    ensures result@ == model::block(h0@, column, lane),
+    ensures result@ == crate::specs::initialization::block(h0@, column, lane),
 ))]
 pub(crate) fn block(h0: &[u8; 64], column: u32, lane: u32) -> [u64; 128] {
-    let input = seed(h0, column, lane);
-    let input_slice: &[u8] = &input;
+    let input = crate::wipe::Bytes(seed(h0, column, lane));
+    let input_slice: &[u8] = &input.0;
     let parts: [&[u8]; 1] = [input_slice];
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -75,11 +75,11 @@ pub(crate) fn block(h0: &[u8; 64], column: u32, lane: u32) -> [u64; 128] {
         assert(crate::blake2b_update_model::blake2b_parts_prefix(parts@, 0) == Seq::empty());
         assert(crate::blake2b_update_model::blake2b_parts_prefix(parts@, 1) == input_slice@);
     }
-    let bytes = crate::blake2b::blake2b_long(1024, &parts);
-    let output = decode(&bytes);
+    let bytes = crate::wipe::ByteVec(crate::blake2b::blake2b_long(1024, &parts));
+    let output = decode(&bytes.0);
     #[cfg(verus_keep_ghost)]
     proof! {
-        reveal(model::block);
+        reveal(crate::specs::initialization::block);
     }
     output
 }
@@ -108,14 +108,14 @@ pub(crate) fn write_block(memory: &mut [u64], slot: usize, output: &[u64; 128]) 
         lanes as int * lane_length as int <= u32::MAX as int,
         lanes as int * lane_length as int * 128 == old(memory)@.len(),
     ensures final(memory)@.len() == old(memory)@.len(),
-        final(memory)@ == model::initialized_prefix(
+        final(memory)@ == crate::specs::initialization::initialized_prefix(
         old(memory)@, h0@, lane_length as nat, 2 * lanes as nat),
 ))]
 pub(crate) fn initialize_words(memory: &mut [u64], h0: &[u8; 64], lanes: u32, lane_length: u32) {
     let _length = memory.len();
     #[cfg(verus_keep_ghost)]
     proof! {
-        reveal(model::initialized_prefix);
+        reveal(crate::specs::initialization::initialized_prefix);
     }
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant
@@ -124,7 +124,7 @@ pub(crate) fn initialize_words(memory: &mut [u64], h0: &[u8; 64], lanes: u32, la
             lanes as int * lane_length as int * 128 == _length,
             memory.len() == _length,
             old(memory)@.len() == _length,
-            memory@ == model::initialized_prefix(old(memory)@, h0@, lane_length as nat, 2 * lane as nat),
+            memory@ == crate::specs::initialization::initialized_prefix(old(memory)@, h0@, lane_length as nat, 2 * lane as nat),
         decreases lanes - lane,
     ))]
     for lane in 0..lanes {
@@ -135,7 +135,7 @@ pub(crate) fn initialize_words(memory: &mut [u64], h0: &[u8; 64], lanes: u32, la
                 lanes as int * lane_length as int * 128 == _length,
                 memory.len() == _length,
                 old(memory)@.len() == _length,
-                memory@ == model::initialized_prefix(old(memory)@, h0@, lane_length as nat,
+                memory@ == crate::specs::initialization::initialized_prefix(old(memory)@, h0@, lane_length as nat,
                     2 * lane as nat + column as nat),
             decreases 2 - column,
         ))]
@@ -152,8 +152,8 @@ pub(crate) fn initialize_words(memory: &mut [u64], h0: &[u8; 64], lanes: u32, la
                     < (lanes as int * lane_length as int)) by(nonlinear_arith)
                     requires lane < lanes, lane_length >= 2, 0 <= column < 2;
             }
-            let output = block(h0, column, lane);
-            write_block(memory, (lane * lane_length + column) as usize, &output);
+            let output = crate::wipe::Words(block(h0, column, lane));
+            write_block(memory, (lane * lane_length + column) as usize, &output.0);
         }
     }
     #[cfg(verus_keep_ghost)]

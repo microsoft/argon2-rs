@@ -10,6 +10,8 @@ use vstd::prelude::*;
 
 #[cfg(verus_keep_ghost)]
 verus! {
+// Lane-tail reduction: RFC 9106 section 3.2 step 7.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-3.2
 #[verifier::opaque]
 pub(crate) open spec fn final_xor(words: Seq<u64>, lanes: nat, lane_length: nat, completed: nat) -> Seq<u64>
     decreases completed,
@@ -24,6 +26,8 @@ pub(crate) open spec fn final_xor(words: Seq<u64>, lanes: nat, lane_length: nat,
     }
 }
 
+// LE64 block encoding: RFC 9106 sections 2 and 3.2 step 8.
+// https://www.rfc-editor.org/rfc/rfc9106.html#section-2
 pub(crate) open spec fn serialize_words(words: Seq<u64>) -> Seq<u8>
     recommends words.len() == 128,
 {
@@ -92,8 +96,8 @@ pub(crate) fn final_block(memory: &Memory, lanes: u32, lane_length: u32, result:
                     lane_base as int + lane_length as int <= lanes as int * lane_length as int,
                     lanes as int * lane_length as int * 128 == memory.words().len();
         }
-        let block = memory.block_copy(block_index as usize);
-        xor_block(result, &block);
+        let block = crate::wipe::Words(memory.block_copy(block_index as usize));
+        xor_block(result, &block.0);
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost old_base = lane_base as int; let ghost old_lane = lane as int; }
         lane_base += lane_length;
@@ -134,21 +138,21 @@ pub(crate) fn serialize_block(words: &[u64; 128], bytes: &mut [u8; 1024]) {
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires 1 <= out_len <= u32::MAX as usize,
         out_len <= isize::MAX as usize,
-    ensures result@ == long_model::h_prime(out_len as nat, serialize_words(words@)),
+    ensures result@ == crate::specs::h_prime::h_prime(out_len as nat, serialize_words(words@)),
         result@.len() == out_len as nat,
 ))]
 pub(crate) fn tag_from_block(out_len: usize, words: &[u64; 128]) -> Vec<u8> {
-    let mut bytes = [0u8; 1024];
+    let mut bytes = crate::wipe::Bytes([0u8; 1024]);
     #[cfg(verus_keep_ghost)]
-    proof! { assert(bytes@ =~= Seq::new(1024, |_index: int| 0u8)); }
-    serialize_block(words, &mut bytes);
-    let parts: [&[u8]; 1] = [&bytes];
+    proof! { assert(bytes.0@ =~= Seq::new(1024, |_index: int| 0u8)); }
+    serialize_block(words, &mut bytes.0);
+    let parts: [&[u8]; 1] = [&bytes.0];
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(crate::blake2b_update_model::blake2b_parts_prefix(parts@, 0) == Seq::empty()) by {
             reveal(crate::blake2b_update_model::blake2b_parts_prefix);
         }
-        assert(crate::blake2b_update_model::blake2b_parts_prefix(parts@, 1) == bytes@) by {
+        assert(crate::blake2b_update_model::blake2b_parts_prefix(parts@, 1) == bytes.0@) by {
             reveal(crate::blake2b_update_model::blake2b_parts_prefix);
         }
         assert(crate::blake2b_update_model::blake2b_parts_prefix(parts@, 1).len() + 4
@@ -164,17 +168,17 @@ pub(crate) fn tag_from_block(out_len: usize, words: &[u64; 128]) -> Vec<u8> {
         lanes as int * lane_length as int * 128 == memory.words().len(),
         1 <= out_len <= u32::MAX as usize,
         out_len <= isize::MAX as usize,
-    ensures result@ == long_model::h_prime(
+    ensures result@ == crate::specs::h_prime::h_prime(
         out_len as nat, serialize_words(final_xor(memory.words(), lanes as nat,
             lane_length as nat, lanes as nat))),
         result@.len() == out_len as nat,
 ))]
 pub(crate) fn scalar_tag(memory: &Memory, lanes: u32, lane_length: u32, out_len: usize) -> Vec<u8> {
-    let mut words = [0u64; 128];
+    let mut words = crate::wipe::Words([0u64; 128]);
     #[cfg(verus_keep_ghost)]
-    proof! { assert(words@ =~= Seq::new(128, |_index: int| 0u64)); }
-    final_block(memory, lanes, lane_length, &mut words);
-    tag_from_block(out_len, &words)
+    proof! { assert(words.0@ =~= Seq::new(128, |_index: int| 0u64)); }
+    final_block(memory, lanes, lane_length, &mut words.0);
+    tag_from_block(out_len, &words.0)
 }
 
 #[cfg(test)]

@@ -26,6 +26,8 @@ rustc-ice-*.txt
 
 *.long-type-*.txt
 /.verus-log/
+/.verus-solver-log/
+/.verus-toolchain/
 /verus/.verus-log/
 /tools/.export-*/
 /tools/export_verified

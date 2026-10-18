@@ -9,6 +9,34 @@ permissions:
   contents: read
 
 jobs:
+  verus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERUS_Z3_PATH: ${{ github.workspace }}/.verus-toolchain/source/z3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: verus-lang/verus
+          ref: 1888846b29c587f56d2a4c482e4b75ecd86f8543
+          path: .verus-toolchain
+      - name: Build pinned Verus and vstd
+        working-directory: .verus-toolchain/source
+        run: |
+          ./tools/get-z3.sh
+          cargo build --release
+          cargo run --release -p cargo-verus -- build --release --manifest-path vstd/Cargo.toml
+          echo "$GITHUB_WORKSPACE/.verus-toolchain/source/target-verus/release" >> "$GITHUB_PATH"
+      - name: Verify complete scalar implementation
+        run: |
+          "$VERUS_Z3_PATH" --version
+          if grep -n 'exec_allows_no_decreases_clause' verus/lib.rs; then
+            echo "Termination opt-out in the verification root" >&2
+            exit 1
+          fi
+          cargo verus verify --manifest-path verus/Cargo.toml --locked --fwd-verus-args-to roots -- --no-cheating --rlimit 30
+
   clippy:
     runs-on: ubuntu-latest
     steps:
