@@ -26,13 +26,18 @@ For a source build, from its `source` directory:
 
 ```sh
 ./tools/get-z3.sh
+export VERUS_Z3_PATH="$PWD/z3"
 cargo build --release
 cargo run --release -p cargo-verus -- build --release --manifest-path vstd/Cargo.toml
+export PATH="$PWD/target-verus/release:$PATH"
 ```
 
-Put that build's `target-verus/release` directory on `PATH`, so both `verus`
-and `cargo-verus` come from the pinned build. Do not replace the ordinary
-project Rust toolchain with the verifier's toolchain.
+These exports select the pinned verifier and the downloaded solver using
+absolute paths, so verification also works after changing to the Argon2
+directory. Adding only `target-verus/release` to `PATH` is insufficient:
+the download script places Z3 in `source/z3`, not in that build directory.
+For CI, set `VERUS_Z3_PATH` at job scope so subsequent steps retain it.
+Do not replace the ordinary project Rust toolchain with the verifier's toolchain.
 
 ## Commands
 
