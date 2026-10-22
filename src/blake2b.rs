@@ -131,7 +131,6 @@ fn blake2b_prefixed(out_len: usize, prefix: &[u8], parts: &[&[u8]]) -> [u8; 64] 
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(model::blake2b_parts_prefix);
-        assert(model::blake2b_parts_prefix(parts@, 0) == Seq::empty());
     }
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant
@@ -251,9 +250,7 @@ pub fn blake2b_long(out_len: usize, parts: &[&[u8]]) -> Vec<u8> {
         let single: [&[u8]; 1] = [input];
         #[cfg(verus_keep_ghost)]
         proof! {
-            reveal(model::blake2b_parts_prefix);
-            assert(model::blake2b_parts_prefix(single@, 0) == Seq::empty());
-            assert(model::blake2b_parts_prefix(single@, 1) == input@);
+            model::blake2b_parts_single(single@);
             long_model::chain_next(seed, (completed - 1) as nat);
             long_model::output_prefix_extend(seed, completed);
         }
@@ -270,10 +267,7 @@ pub fn blake2b_long(out_len: usize, parts: &[&[u8]]) -> Vec<u8> {
     let single: [&[u8]; 1] = [input];
     #[cfg(verus_keep_ghost)]
     proof! {
-        reveal(model::blake2b_parts_prefix);
-        assert(model::blake2b_parts_prefix(single@, 0) == Seq::empty());
-        assert(model::blake2b_parts_prefix(single@, 1) == input@);
-        assert((out_len as int + 31) / 32 - 2 == completed);
+        model::blake2b_parts_single(single@);
     }
     let last = crate::wipe::Bytes(blake2b(remaining, &single));
     out.0.extend_from_slice(&last.0[..remaining]);

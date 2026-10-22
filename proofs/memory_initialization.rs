@@ -1,6 +1,5 @@
-use crate::specs::initialization::{initialized_prefix, seed, decode, block};
+use crate::specs::initialization::{initialized_prefix, block};
 use vstd::prelude::*;
-use crate::blake2b_long_model as hash;
 
 verus! {
 pub open spec fn write_prefix(before: Seq<u64>, start: int, output: Seq<u64>, copied: nat) -> Seq<u64>

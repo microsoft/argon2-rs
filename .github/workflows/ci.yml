@@ -74,10 +74,12 @@ jobs:
 
   portable-build:
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install stable --profile minimal --target aarch64-unknown-linux-gnu
-      - run: cargo +stable check --locked --target aarch64-unknown-linux-gnu
+      - run: cargo +stable check --locked --all-targets --target aarch64-unknown-linux-gnu
 
   package:
     runs-on: ubuntu-latest

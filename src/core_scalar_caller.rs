@@ -1,11 +1,9 @@
 //! Forced-scalar Argon2 caller composition.
 
-#[cfg(verus_keep_ghost)]
-use crate::blake2b_long_model as long_model;
 use crate::core_backend::Backend;
-use crate::{core_final, core_segment, memory::Memory};
 #[cfg(verus_keep_ghost)]
-use crate::{initial_hash_model, memory_initialization_model, specs};
+use crate::specs;
+use crate::{core_final, core_segment, memory::Memory};
 use crate::{Algorithm, Error, Params, Version};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -56,8 +54,6 @@ pub(crate) open spec fn scalar_tag_model(
     ensures final(out)@ == tag@,
 ))]
 fn copy_tag(out: &mut [u8], tag: &[u8]) {
-    #[cfg(verus_keep_ghost)]
-    proof! { assert(out.len() == tag.len()); }
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant out.len() == tag.len(),
             forall|index: int| 0 <= index < out.len() ==>
@@ -116,14 +112,7 @@ pub(crate) fn hash_into_scalar(
     };
     #[cfg(verus_keep_ghost)]
     proof! {
-        assert(specs::valid_params(params.parallelism, params.memory_kib, params.iterations));
-        assert(params.iterations > 0);
-        assert(memory_blocks == geometry_blocks);
-        assert(lane_length == geometry_lane_length);
-        assert(segment_length == geometry_segment_length);
         assert(seg.valid());
-        assert(memory.words().len() == memory_blocks as int * 128);
-        assert(out.len() <= isize::MAX as usize);
     }
     core_segment::fill_memory(&mut memory, &seg);
     let tag = crate::wipe::ByteVec(core_final::scalar_tag(

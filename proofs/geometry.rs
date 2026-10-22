@@ -35,7 +35,6 @@ pub proof fn geometry(memory: u32, lanes: u32, quantum: u32, segment: u32)
             lanes >= 1,
             quantum == 4 * lanes,
     ;
-    assert((segment as int * 4) / 4 == segment as int);
     lemma_div_is_ordered(8 * lanes as int, memory as int, quantum as int);
     assert((8 * lanes as int) / quantum as int == 2) by (nonlinear_arith)
         requires
@@ -66,7 +65,6 @@ pub proof fn product_bound(area: u64, square: u64, high: u64)
         area as int * high as int <= 0xffff_ffff * 0xffff_ffff,
 {
     lemma_div_is_ordered(square as int, (0xffff_ffff * 0xffff_ffff) as int, 0x1_0000_0000);
-    assert(high <= 0xffff_fffe);
     assert(area as int * high as int <= 0xffff_ffff * 0xffff_ffff) by (nonlinear_arith)
         requires
             1 <= area <= 0xffff_ffff,
@@ -152,22 +150,15 @@ pub proof fn index_alpha_relative_bounds(area: int, j1: u32)
     let divisor = 0x1_0000_0000int;
     let rand = j1 as u64;
     square_bound(rand);
-    assert(rand as int == j1 as int);
     let square = rand as int * rand as int;
     let high = square / divisor;
     let maximum_square = 0xffff_ffffint * 0xffff_ffffint;
-    assert(square <= maximum_square);
-    assert(maximum_square == divisor * 0xffff_fffeint + 1);
     lemma_div_is_ordered(square, maximum_square, divisor);
     lemma_fundamental_div_mod(maximum_square, divisor);
-    assert(maximum_square / divisor == 0xffff_fffeint);
-    assert(high <= 0xffff_fffeint);
-    assert(0 <= high < divisor);
 
     let product = area * high;
     let scaled = product / divisor;
     let product_remainder = product % divisor;
-    assert(product >= 0);
     assert(product < area * divisor) by (nonlinear_arith)
         requires
             product == area * high,
@@ -176,19 +167,13 @@ pub proof fn index_alpha_relative_bounds(area: int, j1: u32)
     ;
     lemma_fundamental_div_mod(product, divisor);
     lemma_mod_bound(product, divisor);
-    assert(product == divisor * scaled + product_remainder);
     lemma_div_is_ordered(0, product, divisor);
-    assert(0 <= scaled);
     assert(scaled < area) by (nonlinear_arith)
         requires
             product == divisor * scaled + product_remainder,
             0 <= product_remainder < divisor,
             product < area * divisor,
             0 < area,
-    ;
-    assert(0 <= area - 1 - scaled < area) by (nonlinear_arith)
-        requires
-            0 <= scaled < area,
     ;
 }
 
@@ -199,14 +184,8 @@ pub proof fn index_alpha_excludes_current(pass: u32, slice: u32, segment: u32, i
         specs::index_alpha(pass, slice, segment, index, j1, true) != (slice as int * segment as int
             + index as int),
 {
-    reveal(specs::index_alpha);
-    reveal(specs::reference_area);
-    reveal(specs::valid_position);
     let area = specs::reference_area(pass, slice, segment, index, true);
     reference_area_model_bounds(pass, slice, segment, index, true);
-    assert(1 <= area);
-    assert(area < 4 * segment as int);
-    assert(4 * segment as int <= 0xffff_ffff as int);
     index_alpha_relative_bounds(area, j1);
     let relative = area - 1 - (area * ((j1 as int * j1 as int) / 0x1_0000_0000)) / 0x1_0000_0000;
     let current = slice as int * segment as int + index as int;
@@ -216,11 +195,6 @@ pub proof fn index_alpha_excludes_current(pass: u32, slice: u32, segment: u32, i
     } else {
         0int
     };
-    assert(current == slice as int * segment as int + index as int);
-    assert(lane == 4 * segment as int);
-    assert(slice as int <= 3);
-    assert((index as int) < segment as int);
-    assert(current <= slice as int * segment as int + segment as int - 1);
     assert(current < lane) by (nonlinear_arith)
         requires
             current == slice as int * segment as int + index as int,
@@ -230,21 +204,11 @@ pub proof fn index_alpha_excludes_current(pass: u32, slice: u32, segment: u32, i
             segment as int >= 2,
     ;
     if pass == 0 || slice == 3 {
-        assert(start == 0);
-        if pass == 0 && slice == 0 {
-            assert(area == index as int - 1);
-        } else {
-            assert(area == current - 1);
-        }
-        assert(area <= current);
-        assert(relative < current);
         lemma_fundamental_div_mod(relative, lane);
         lemma_mod_bound(relative, lane);
         let relative_quotient = relative / lane;
         let relative_remainder = relative % lane;
-        assert(relative == lane * relative_quotient + relative_remainder);
         lemma_div_is_ordered(0, relative, lane);
-        assert(relative_quotient >= 0);
         assert(relative_quotient == 0) by (nonlinear_arith)
             requires
                 relative == lane * relative_quotient + relative_remainder,
@@ -258,18 +222,12 @@ pub proof fn index_alpha_excludes_current(pass: u32, slice: u32, segment: u32, i
                 relative == lane * relative_quotient + relative_remainder,
                 relative_quotient == 0,
         ;
-        assert((start + relative) % lane != current);
     } else {
-        assert(pass > 0 && slice < 3);
-        assert(start == (slice as int + 1) * segment as int);
-        assert(current == slice as int * segment as int + index as int);
-        assert(area == 3 * segment as int + index as int - 1);
         assert(start - current == segment as int - index as int) by (nonlinear_arith)
             requires
                 start == (slice as int + 1) * segment as int,
                 current == slice as int * segment as int + index as int,
         ;
-        assert(segment as int - index as int > 0);
         assert(start > current) by (nonlinear_arith)
             requires
                 start - current == segment as int - index as int,
@@ -296,7 +254,6 @@ pub proof fn index_alpha_excludes_current(pass: u32, slice: u32, segment: u32, i
                 start + relative < current + lane,
                 lane > 0,
         ;
-        assert((start + relative) % lane != current);
     }
 }
 
@@ -312,15 +269,8 @@ pub proof fn reference_area_model_bounds(
     ensures
         1 <= specs::reference_area(pass, slice, segment, index, same_lane) < 4 * segment as int,
 {
-    reveal(specs::valid_position);
-    reveal(specs::reference_area);
-    assert(2 <= segment);
-    assert(segment <= 0x3fff_ffff);
-    assert(slice < 4);
-    assert(index < segment);
     if pass == 0 {
         if slice == 0 {
-            assert(index >= 2);
             assert(1 <= index as int - 1 < 4 * segment as int) by (nonlinear_arith)
                 requires
                     index >= 2,
@@ -328,7 +278,6 @@ pub proof fn reference_area_model_bounds(
                     segment >= 2,
             ;
         } else if same_lane {
-            assert(1 <= slice);
             assert(1 <= slice as int * segment as int + index as int - 1 < 4 * segment as int)
                 by (nonlinear_arith)
                 requires
@@ -337,7 +286,6 @@ pub proof fn reference_area_model_bounds(
                     segment >= 2,
             ;
         } else {
-            assert(1 <= slice);
             assert(1 <= slice as int * segment as int - if index == 0 {
                 1int
             } else {

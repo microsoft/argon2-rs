@@ -2,8 +2,6 @@
 
 use crate::block_g_column;
 #[cfg(verus_keep_ghost)]
-use crate::specs;
-#[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 #[cfg_attr(verus_keep_ghost, verus_spec(
     ensures final(words)@ == crate::invariant_specs::permute_columns_prefix(old(words)@, 8),

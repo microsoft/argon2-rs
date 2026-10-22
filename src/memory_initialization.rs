@@ -71,9 +71,7 @@ pub(crate) fn block(h0: &[u8; 64], column: u32, lane: u32) -> [u64; 128] {
     let parts: [&[u8]; 1] = [input_slice];
     #[cfg(verus_keep_ghost)]
     proof! {
-        reveal(crate::blake2b_update_model::blake2b_parts_prefix);
-        assert(crate::blake2b_update_model::blake2b_parts_prefix(parts@, 0) == Seq::empty());
-        assert(crate::blake2b_update_model::blake2b_parts_prefix(parts@, 1) == input_slice@);
+        crate::blake2b_update_model::blake2b_parts_single(parts@);
     }
     let bytes = crate::wipe::ByteVec(crate::blake2b::blake2b_long(1024, &parts));
     let output = decode(&bytes.0);
@@ -142,7 +140,6 @@ pub(crate) fn initialize_words(memory: &mut [u64], h0: &[u8; 64], lanes: u32, la
         for column in 0..2u32 {
             #[cfg(verus_keep_ghost)]
             proof! {
-                assert((2 * lane as int + column as int + 2) / 2 == lane as int + 1);
                 assert((lane as int + 1) * lane_length as int * 128
                     <= lanes as int * lane_length as int * 128) by(nonlinear_arith)
                     requires lane < lanes, lane_length >= 2;
@@ -156,8 +153,6 @@ pub(crate) fn initialize_words(memory: &mut [u64], h0: &[u8; 64], lanes: u32, la
             write_block(memory, (lane * lane_length + column) as usize, &output.0);
         }
     }
-    #[cfg(verus_keep_ghost)]
-    proof! { assert(memory@.len() == old(memory)@.len()); }
 }
 
 #[cfg(test)]

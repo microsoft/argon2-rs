@@ -15,8 +15,6 @@ mod proofs;
 mod blake2b_update_model;
 #[path = "../proofs/blake2b_long.rs"]
 mod blake2b_long_model;
-#[path = "../proofs/initial_hash.rs"]
-mod initial_hash_model;
 #[path = "../proofs/memory_initialization.rs"]
 mod memory_initialization_model;
 #[path = "../src/core_primitives.rs"]

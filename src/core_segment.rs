@@ -220,11 +220,6 @@ where
         debug_assert!(reference != curr && prev != curr);
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert((prev as usize as int + 1) * 128 <= memory.words().len());
-            assert((reference as usize as int + 1) * 128 <= memory.words().len());
-            assert((curr as usize as int + 1) * 128 <= memory.words().len());
-            assert(prev as usize != curr as usize);
-            assert(reference as usize != curr as usize);
             assert(call_requires(fill, (memory, prev as usize, reference as usize,
                 curr as usize, with_xor, index == starting_index)));
         }

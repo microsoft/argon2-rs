@@ -199,14 +199,4 @@ pub open spec fn xor_words_prefix(
     })
 }
 
-pub open spec fn replace_prefix(
-    before: Seq<u64>,
-    replacement: Seq<u64>,
-    completed: int,
-) -> Seq<u64>
-    recommends before.len() == 128, replacement.len() == 128,
-        0 <= completed <= 128,
-{
-    Seq::new(128, |i: int| if i < completed { replacement[i] } else { before[i] })
-}
 }

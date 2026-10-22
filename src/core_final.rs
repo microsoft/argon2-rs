@@ -1,7 +1,5 @@
 //! Final lane reduction and little-endian block serialization.
 
-#[cfg(verus_keep_ghost)]
-use crate::blake2b_long_model as long_model;
 use crate::memory::Memory;
 #[cfg(verus_keep_ghost)]
 use crate::{memory, specs};
@@ -83,13 +81,10 @@ pub(crate) fn final_block(memory: &Memory, lanes: u32, lane_length: u32, result:
                 <= lanes as int * lane_length as int) by(nonlinear_arith) requires
                     lane_base as int == lane as int * lane_length as int,
                     lane < lanes, lane_length >= 8;
-            assert(lane_base as int + lane_length as int <= u32::MAX as int);
         }
         let block_index = lane_base + lane_length - 1;
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert(block_index as int
-                == lane_base as int + lane_length as int - 1);
             assert((block_index as int + 1) * 128 <= memory.words().len())
                 by(nonlinear_arith) requires
                     block_index as int == lane_base as int + lane_length as int - 1,
@@ -104,8 +99,6 @@ pub(crate) fn final_block(memory: &Memory, lanes: u32, lane_length: u32, result:
         lane += 1;
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert(lane_base as int == old_base + lane_length as int);
-            assert(lane as int == old_lane + 1);
             assert(lane_base as int == lane as int * lane_length as int)
                 by(nonlinear_arith) requires
                     old_base == old_lane * lane_length as int,
@@ -149,14 +142,7 @@ pub(crate) fn tag_from_block(out_len: usize, words: &[u64; 128]) -> Vec<u8> {
     let parts: [&[u8]; 1] = [&bytes.0];
     #[cfg(verus_keep_ghost)]
     proof! {
-        assert(crate::blake2b_update_model::blake2b_parts_prefix(parts@, 0) == Seq::empty()) by {
-            reveal(crate::blake2b_update_model::blake2b_parts_prefix);
-        }
-        assert(crate::blake2b_update_model::blake2b_parts_prefix(parts@, 1) == bytes.0@) by {
-            reveal(crate::blake2b_update_model::blake2b_parts_prefix);
-        }
-        assert(crate::blake2b_update_model::blake2b_parts_prefix(parts@, 1).len() + 4
-            <= u128::MAX as int);
+        crate::blake2b_update_model::blake2b_parts_single(parts@);
     }
     crate::blake2b::blake2b_long(out_len, &parts)
 }

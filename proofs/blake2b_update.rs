@@ -28,21 +28,11 @@ pub proof fn blake2b_parts_prefix_bound(parts: Seq<&[u8]>, completed: nat, total
     }
 }
 
-pub proof fn blake2b_buffer_append_composition(
-    buffer: Seq<u8>, start: int, first: Seq<u8>, second: Seq<u8>,
-)
-    requires buffer.len() == 128, 0 <= start,
-        start + first.len() + second.len() <= 128,
-    ensures crate::invariant_specs::blake2b_buffer_append(
-        crate::invariant_specs::blake2b_buffer_append(buffer, start, first),
-        start + first.len(), second,
-    ) == crate::invariant_specs::blake2b_buffer_append(buffer, start, first + second),
+pub proof fn blake2b_parts_single(parts: Seq<&[u8]>)
+    requires parts.len() == 1,
+    ensures blake2b_parts_prefix(parts, 1) == parts[0]@,
 {
-    let left = crate::invariant_specs::blake2b_buffer_append(
-        crate::invariant_specs::blake2b_buffer_append(buffer, start, first), start + first.len(), second,
-    );
-    let right = crate::invariant_specs::blake2b_buffer_append(buffer, start, first + second);
-    assert(left =~= right);
+    reveal_with_fuel(blake2b_parts_prefix, 2);
 }
 
 pub proof fn blake2b_nonfinal_blocks_len(
@@ -174,10 +164,16 @@ pub proof fn blake2b_update_semantic_next(
     }
 }
 
+pub open spec fn blake2b_update_complete(
+    initial: Blake2bUpdateState, input: Seq<u8>, state: Blake2bUpdateState, blocks: nat,
+) -> bool {
+    blake2b_update_semantic_at(initial, input, state, blocks) && state.4 == input.len()
+}
+
 pub proof fn blake2b_update_semantic_finalize(
     initial: Blake2bUpdateState, input: Seq<u8>, state: Blake2bUpdateState, blocks: nat,
 )
-    requires blake2b_update_semantic_at(initial, input, state, blocks), state.4 == input.len(),
+    requires blake2b_update_complete(initial, input, state, blocks),
     ensures specs::blake2b_finalize_result(state.0, state.1, state.2, state.3)
         == blake2b_stream_digest(initial.0, initial.1, initial.2.take(initial.3 as int) + input),
 {
@@ -205,10 +201,9 @@ pub proof fn blake2b_update_semantic_compose(
     middle: Blake2bUpdateState, final_state: Blake2bUpdateState, first_blocks: nat, second_blocks: nat,
 )
     requires blake2b_update_state_valid(initial, (first + second).len()), initial.4 == 0,
-        blake2b_update_semantic_at(initial, first, middle, first_blocks), middle.4 == first.len(),
-        blake2b_update_semantic_at(blake2b_update_restart(middle), second, final_state, second_blocks),
-        final_state.4 == second.len(),
-    ensures blake2b_update_semantic_at(
+        blake2b_update_complete(initial, first, middle, first_blocks),
+        blake2b_update_complete(blake2b_update_restart(middle), second, final_state, second_blocks),
+    ensures blake2b_update_complete(
         initial, first + second,
         (final_state.0, final_state.1, final_state.2, final_state.3, first.len() + second.len()),
         first_blocks + second_blocks,
@@ -239,17 +234,16 @@ pub proof fn blake2b_update_semantic_compose(
     }
 }
 
+// Standalone theorem: preserve split-vs-joined digest equivalence even without callers.
 pub proof fn blake2b_update_partition_independence(
     initial: Blake2bUpdateState, first: Seq<u8>, second: Seq<u8>,
     middle: Blake2bUpdateState, split_final: Blake2bUpdateState, joined_final: Blake2bUpdateState,
     first_blocks: nat, second_blocks: nat, joined_blocks: nat,
 )
     requires blake2b_update_state_valid(initial, (first + second).len()), initial.4 == 0,
-        blake2b_update_semantic_at(initial, first, middle, first_blocks), middle.4 == first.len(),
-        blake2b_update_semantic_at(blake2b_update_restart(middle), second, split_final, second_blocks),
-        split_final.4 == second.len(),
-        blake2b_update_semantic_at(initial, first + second, joined_final, joined_blocks),
-        joined_final.4 == first.len() + second.len(),
+        blake2b_update_complete(initial, first, middle, first_blocks),
+        blake2b_update_complete(blake2b_update_restart(middle), second, split_final, second_blocks),
+        blake2b_update_complete(initial, first + second, joined_final, joined_blocks),
     ensures specs::blake2b_finalize_result(split_final.0, split_final.1, split_final.2, split_final.3)
         == specs::blake2b_finalize_result(joined_final.0, joined_final.1, joined_final.2, joined_final.3),
 {
@@ -295,28 +289,21 @@ pub open spec fn blake2b_update_edge_at(
         && trace[index + 1] == blake2b_update_next(trace[index], input)
 }
 
-pub proof fn blake2b_update_edge_push_prefix(
+pub proof fn blake2b_update_edge_push(
     trace: Seq<Blake2bUpdateState>, next: Blake2bUpdateState, input: Seq<u8>, index: int,
 )
-    requires 0 <= index < trace.len() - 1,
-    ensures blake2b_update_edge_at(trace.push(next), input, index)
-        == blake2b_update_edge_at(trace, input, index),
+    requires 0 <= index < trace.len(),
+        index < trace.len() - 1 ==> blake2b_update_edge_at(trace, input, index),
+        trace.last().4 < input.len(), next == blake2b_update_next(trace.last(), input),
+    ensures blake2b_update_edge_at(trace.push(next), input, index),
 {
     reveal(blake2b_update_edge_at);
     vstd::seq::lemma_seq_push_index_different(trace, next, index);
-    vstd::seq::lemma_seq_push_index_different(trace, next, index + 1);
-}
-
-pub proof fn blake2b_update_edge_push_last(
-    trace: Seq<Blake2bUpdateState>, next: Blake2bUpdateState, input: Seq<u8>,
-)
-    requires trace.len() > 0, trace.last().4 < input.len(),
-        next == blake2b_update_next(trace.last(), input),
-    ensures blake2b_update_edge_at(trace.push(next), input, trace.len() - 1),
-{
-    reveal(blake2b_update_edge_at);
-    vstd::seq::lemma_seq_push_index_different(trace, next, trace.len() - 1);
-    vstd::seq::lemma_seq_push_index_same(trace, next, trace.len() as int);
+    if index < trace.len() - 1 {
+        vstd::seq::lemma_seq_push_index_different(trace, next, index + 1);
+    } else {
+        vstd::seq::lemma_seq_push_index_same(trace, next, index + 1);
+    }
 }
 
 pub open spec fn blake2b_update_trace(
@@ -340,8 +327,6 @@ pub proof fn blake2b_update_trace_extend(
     blake2b_update_next_valid(state, input);
     let next = blake2b_update_next(state, input);
     let extended = trace.push(next);
-    assert(extended.len() == trace.len() + 1);
-    assert(extended[0] == trace[0]);
     assert forall|index: int| 0 <= index < extended.len() implies
         blake2b_update_state_valid(#[trigger] extended[index], input.len()) by {
         if index < trace.len() {
@@ -351,15 +336,9 @@ pub proof fn blake2b_update_trace_extend(
             vstd::seq::lemma_seq_push_index_same(trace, next, index);
         }
     }
-    blake2b_update_edge_push_last(trace, next, input);
     assert forall|index: int| 0 <= index < extended.len() - 1 implies
         #[trigger] blake2b_update_edge_at(extended, input, index) by {
-        if index < trace.len() - 1 {
-            blake2b_update_edge_push_prefix(trace, next, input, index);
-            assert(blake2b_update_edge_at(trace, input, index));
-        } else {
-            assert(index == trace.len() - 1);
-        }
+        blake2b_update_edge_push(trace, next, input, index);
     }
 }
 }
