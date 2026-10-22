@@ -1,7 +1,5 @@
 #[cfg(verus_keep_ghost)]
 use crate::blake2b_update_model as stream;
-#[cfg(verus_keep_ghost)]
-use crate::initial_hash_model as model;
 use crate::{Algorithm, Error, Params, Version};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -55,16 +53,7 @@ pub(crate) fn compute_h0(
     ];
     #[cfg(verus_keep_ghost)]
     proof! {
-        model::parts_step(parts@, 0);
-        model::parts_step(parts@, 1);
-        model::parts_step(parts@, 2);
-        model::parts_step(parts@, 3);
-        model::parts_step(parts@, 4);
-        model::parts_step(parts@, 5);
-        model::parts_step(parts@, 6);
-        model::parts_step(parts@, 7);
-        model::parts_step(parts@, 8);
-        model::parts_step(parts@, 9);
+        reveal_with_fuel(stream::blake2b_parts_prefix, 10);
         assert(stream::blake2b_parts_prefix(parts@, 9)
             == crate::specs::initial_hash::message(fields@, password@, salt@, secret@, ad@));
     }

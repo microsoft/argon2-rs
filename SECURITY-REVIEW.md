@@ -135,7 +135,7 @@ git diff --check
   environment. All available scalar, SSE2, SSSE3 and AVX2 backends were tested.
 - Doctests: **1 passed, 0 failed**.
 - Clippy, formatting and patch-whitespace checks: passed.
-- The consolidated Cargo-Verus application proof passes **212 verified,
+- The consolidated Cargo-Verus application proof passes **209 verified,
   0 errors**, preserving the old roots' coverage. The upstream vstd
   allocation contract remains trusted, not an allocator implementation
   proof; no local patch is required.

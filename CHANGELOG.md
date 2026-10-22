@@ -2,6 +2,10 @@
 
 ## 0.1.0 - Unreleased
 
+- Simplified proof-only code: removed unused helpers/imports and redundant
+  assertions/reveals, factored completed-update lemma contracts, and shared
+  multipart/trace-extension proofs. Executable code, executable contracts,
+  loop specifications and canonical RFC definitions are unchanged.
 - Consolidated same-source proofs into a pinned upstream Cargo-Verus package
   and CI gate; vstd includes merged upstream PR #3094. Removed scalar-loop
   termination opt-outs, separated canonical RFC semantics from proof-only

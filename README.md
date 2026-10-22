@@ -10,7 +10,7 @@ It implements the existing Argon2 spec and contains an in-tree implementation of
 
 Proven machine-checked functional-correctness theorem stated as: for API-accepted inputs and parameters, if the forced-scalar caller is successful (aka returns `Ok(())`), its output equals the tag computed by the whole-hash model derived from the Argon2 specification.
 
-The consolidated Cargo-Verus application proof passes 212 obligations with zero errors. SIMD paths are not covered by that theorem. See the [verification guide](verus/README.md) and [human audit map](specs/README.md).
+The consolidated Cargo-Verus application proof passes 209 obligations with zero errors. SIMD paths are not covered by that theorem. See the [verification guide](verus/README.md) and [human audit map](specs/README.md).
 
 ## Attribution And Security Reporting
 
@@ -145,7 +145,7 @@ normal return. Legacy `0x10` behavior is retained, but RFC 9106 specifies
 
 All formerly opted-out scalar loops have explicit decreasing measures.
 Termination is not a bound on hashing time or an application resource policy.
-The current consolidated application result is **212 verified, 0 errors**;
+The current consolidated application result is **209 verified, 0 errors**;
 obligation counts are not coverage percentages and cannot be compared by
 summing the overlapping historical roots.
 
@@ -187,7 +187,8 @@ cargo test --release
 
 For 32-bit x86, add `--target i686-unknown-linux-gnu` with the target toolchain
 and linker installed. CI is configured for Linux, Windows, and macOS and separately
-checks portable ARM64 compilation. A build-only job is not an ARM64 runtime test,
+checks portable ARM64 compilation, including test targets, with warnings treated
+as errors. A build-only job is not an ARM64 runtime test,
 and SIMD tests run only for instruction sets available to each runner.
 
 Reference-C differential fuzzing has been run in a separate native harness;

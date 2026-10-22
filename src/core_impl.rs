@@ -149,4 +149,6 @@ pub(crate) fn hash_into_with_backend(
     Ok(())
 }
 
-pub(crate) use crate::core_segment::{fill_segment_scalar, walk_segment, Segment};
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+pub(crate) use crate::core_segment::walk_segment;
+pub(crate) use crate::core_segment::{fill_segment_scalar, Segment};

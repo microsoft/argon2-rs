@@ -6,8 +6,6 @@
 //! process abort or termination.
 
 use crate::block::Block;
-#[cfg(verus_keep_ghost)]
-use crate::memory_initialization_model as model;
 use crate::Error;
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -207,28 +205,14 @@ impl Memory {
         let lanes = params.parallelism;
         let (blocks, lane_length, segment_length) =
             crate::core_primitives::memory_geometry(params.memory_kib, lanes);
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            assert(blocks as int == lanes as int * lane_length as int);
-            assert(lane_length as int == 4 * segment_length as int);
-            assert(lanes as int * lane_length as int <= u32::MAX as int);
-        }
         let mut memory = Memory::zeroed(blocks as usize)?;
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(memory.words() =~= Seq::new(
                 blocks as nat * 128, |_index: int| 0u64,
-            )) by {
-                assert(memory.words().len() == blocks as int * 128);
-                assert forall|index: int| 0 <= index < memory.words().len()
-                    implies memory.words()[index] == Seq::new(
-                        blocks as nat * 128, |_index: int| 0u64,
-                    )[index] by {}
-            }
+            ));
         }
         memory.initialize(h0, lanes, lane_length);
-        #[cfg(verus_keep_ghost)]
-        proof! { assert(memory.words().len() == blocks as int * 128); }
         Ok((memory, blocks, lane_length, segment_length))
     }
 }

@@ -1,7 +1,6 @@
-use crate::specs::h_prime::{length_prefix, chain, output_prefix, h_prime};
+use crate::specs::h_prime::{chain, output_prefix};
 use vstd::prelude::*;
 use crate::specs;
-use crate::blake2b_update_model as model;
 
 verus! {
 pub proof fn digest_length(out_len: nat, message: Seq<u8>)

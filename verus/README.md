@@ -107,7 +107,7 @@ Partial-update relations live in [proofs/specs.rs](../proofs/specs.rs).
 Complete-pass and notation-equivalence lemmas connect them to the canonical
 model without weakening runtime contracts.
 
-The current consolidated application result is **212 verified, 0 errors**.
+The current consolidated application result is **209 verified, 0 errors**.
 This includes new named constants and equivalence obligations, not new
 SIMD/FFI coverage. The pinned vstd build reports **2060 verified, 0 errors**.
 Counts overlap across historical roots and are not coverage percentages.

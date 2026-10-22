@@ -21,9 +21,10 @@ pub open spec fn address_input(
         else { 0u64 })
 }
 
-#[verifier::opaque]
 // RFC 9106 section 3.4.1.2: the zero block used for address generation.
 // https://www.rfc-editor.org/rfc/rfc9106.html#section-3.4.1.2
+// Keep this opaque to avoid expanding zero-block sequences throughout traversal.
+#[verifier::opaque]
 pub open spec fn zero_words() -> Seq<u64> {
     Seq::new(128, |_index: int| 0u64)
 }
@@ -138,11 +139,8 @@ pub(crate) fn next_addresses(input_block: &mut [u64; 128], address_block: &mut [
     compress_into(&zero, &temp, address_block);
     #[cfg(verus_keep_ghost)]
     proof! {
-        assert(zero@ == zero_words()) by {
+        assert(zero@ =~= zero_words()) by {
             reveal(zero_words);
-            assert forall|index: int| 0 <= index < 128 implies
-                zero@[index] == zero_words()[index] by {}
-            assert(zero@ =~= zero_words());
         }
         generated_address_composition(
             zero@, input_block@, temp@, old(address_block)@, address_block@,

@@ -146,9 +146,15 @@ mod tests {
     fn hashing_wipes_temporary_owners_on_each_backend() {
         use crate::core_backend::Backend;
         use crate::{Algorithm, Params, Version};
-        let mut backends = vec![Backend::Scalar];
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        backends.extend([Backend::Sse2, Backend::Ssse3, Backend::Avx2]);
+        let backends = [
+            Backend::Scalar,
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            Backend::Sse2,
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            Backend::Ssse3,
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            Backend::Avx2,
+        ];
         for backend in backends {
             if !backend.is_available() {
                 continue;

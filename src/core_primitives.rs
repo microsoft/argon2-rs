@@ -157,15 +157,12 @@ pub fn segment_base_positions(
 ) -> (u32, u32) {
     #[cfg(verus_keep_ghost)]
     proof! {
-        assert(lane_length >= 2);
         assert((slice as int * segment_length as int + index as int) < lane_length as int)
             by(nonlinear_arith) requires
                 slice < 4, index < segment_length,
                 lane_length == 4 * segment_length;
     }
     let curr_index = slice * segment_length + index;
-    #[cfg(verus_keep_ghost)]
-    proof! { assert(curr_index < lane_length); }
     let prev_index = previous_index(curr_index, lane_length);
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -182,14 +179,6 @@ pub fn segment_base_positions(
     }
     let curr_pos = lane * lane_length + curr_index;
     let prev_pos = lane * lane_length + prev_index;
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        assert(curr_pos as int == lane as int * lane_length as int + curr_index as int);
-        assert(prev_pos as int == lane as int * lane_length as int + prev_index as int);
-        assert(curr_pos < memory_blocks);
-        assert(prev_pos < memory_blocks);
-        assert(prev_pos != curr_pos);
-    }
     (prev_pos, curr_pos)
 }
 
@@ -241,13 +230,6 @@ pub fn segment_reference_position(
     let ref_index = index_alpha(pass, slice, segment_length, index, pseudo_rand as u32, same_lane);
     #[cfg(verus_keep_ghost)]
     proof! {
-        assert(ref_lane < lanes);
-        assert(ref_index < lane_length);
-        if same_lane {
-            assert(ref_index as int != curr_index as int);
-        } else {
-            assert(ref_lane != lane);
-        }
         assert((ref_lane as int * lane_length as int + ref_index as int) < memory_blocks as int)
             by(nonlinear_arith) requires
                 ref_lane < lanes, ref_index < lane_length,
@@ -258,19 +240,12 @@ pub fn segment_reference_position(
     let curr_pos = lane * lane_length + curr_index;
     #[cfg(verus_keep_ghost)]
     proof! {
-        assert(ref_pos as int == ref_lane as int * lane_length as int + ref_index as int);
-        assert(curr_pos as int == lane as int * lane_length as int + curr_index as int);
-        assert(ref_pos < memory_blocks);
-        assert(curr_pos < memory_blocks);
         if same_lane {
-            assert(ref_lane == lane);
-            assert(ref_index as int != curr_index as int);
             assert(ref_pos != curr_pos) by(nonlinear_arith) requires
                 ref_pos as int == ref_lane as int * lane_length as int + ref_index as int,
                 curr_pos as int == lane as int * lane_length as int + curr_index as int,
                 ref_lane == lane, ref_index as int != curr_index as int;
         } else {
-            assert(ref_lane != lane);
             assert(ref_pos != curr_pos) by(nonlinear_arith) requires
                 ref_pos as int == ref_lane as int * lane_length as int + ref_index as int,
                 curr_pos as int == lane as int * lane_length as int + curr_index as int,
