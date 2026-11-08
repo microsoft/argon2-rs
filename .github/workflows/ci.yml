@@ -87,3 +87,31 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - run: rustup toolchain install stable --profile minimal
       - run: cargo +stable package --locked
+      - name: Test the packaged artifact
+        run: |
+          cd target/package/argon2-verus-0.1.0
+          cargo +stable test --locked --release
+          RUSTDOCFLAGS="-D warnings" cargo +stable doc --locked --no-deps
+
+  reference-vectors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          repository: P-H-C/phc-winner-argon2
+          ref: 62358ba2123abd17fccf2a108a301d4b52c01a7c
+          path: target/reference-argon2-20190702
+      - name: Reproduce independent vectors
+        run: |
+          sh tools/reference-vectors.sh target/reference-argon2-20190702 > target/reference-vectors.tsv
+          diff -u tests/reference/argon2-20190702.tsv target/reference-vectors.tsv
+
+  dependency-audits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - run: rustup toolchain install stable --profile minimal
+      - run: cargo +stable install cargo-vet --version 0.10.3 --locked
+      - name: Check dependency audits (not a first-party security audit)
+        run: cargo +stable vet --locked

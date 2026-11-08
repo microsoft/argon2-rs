@@ -11,9 +11,11 @@ use vstd::prelude::*;
 #[repr(u32)]
 pub enum Algorithm {
     /// Data-dependent addressing. Faster, but vulnerable to side-channel
-    /// (cache-timing) attacks; suitable for cryptocurrencies/backends only.
+    /// (cache-timing) attacks. Do not select it for new password storage;
+    /// use only where data-dependent addressing fits the threat model.
     Argon2d = 0,
-    /// Data-independent addressing. Recommended for password hashing.
+    /// Data-independent addressing. Use when required by an existing protocol
+    /// or threat model; prefer Argon2id for new password storage.
     Argon2i = 1,
     /// Hybrid: data-independent for the first half of the first pass,
     /// data-dependent afterwards. The generally recommended default.
@@ -39,10 +41,13 @@ pub enum Version {
 /// Valid values require `parallelism` in `1..=2^24-1`, `memory_kib >= 8 *
 /// parallelism`, and `iterations >= 1`. Effective memory is rounded down to a
 /// multiple of `4 * parallelism` blocks.
+/// These are algorithm bounds, not safe application budgets. Cap memory,
+/// passes and concurrent requests before accepting untrusted configurations.
 #[cfg_attr(verus_keep_ghost, verus_verify)]
 #[derive(Debug, Clone, Copy)]
 pub struct Params {
     /// Degree of parallelism `p`, in `1..=2^24-1` lanes.
+    /// Lanes are processed sequentially; this does not create worker threads.
     pub parallelism: u32,
     /// Requested memory size `m` in KiB, at least `8 * parallelism`.
     pub memory_kib: u32,
