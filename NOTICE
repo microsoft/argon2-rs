@@ -1,7 +1,7 @@
 argon2-verus
 ============
 
-This crate is licensed under the MIT License. See LICENSE-MIT.
+This crate is licensed under the MIT License. See LICENSE.
 
 This Rust port is based on the Argon2 reference implementation:
 
@@ -9,6 +9,15 @@ This Rust port is based on the Argon2 reference implementation:
   Daniel Dinu, Dmitry Khovratovich, Jean-Philippe Aumasson, and Samuel Neves
 
   https://github.com/P-H-C/phc-winner-argon2
+
+The original port did not record an exact upstream source revision.
+The independent regression-test oracle is pinned to upstream release
+20190702, commit 62358ba2123abd17fccf2a108a301d4b52c01a7c:
+
+  https://github.com/P-H-C/phc-winner-argon2/tree/62358ba2123abd17fccf2a108a301d4b52c01a7c
+
+This test baseline is not a claim about the original port's source revision.
+See tests/reference/README.md for reproduction instructions.
 
 The reference source package offers its work under either the Creative Commons
 CC0 1.0 Universal License/Waiver or the Apache License 2.0, at the user's

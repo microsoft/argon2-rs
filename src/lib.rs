@@ -4,13 +4,43 @@
 //! applications"](https://www.cryptolux.org/index.php/Argon2) (v1.2.1,
 //! the PHC winner submission) and RFC 9106.
 //!
-//! See `README.md` for the security rationale, verification status, and
-//! test methodology (known-answer tests plus same-source Verus proofs of
-//! scalar primitives, complete block G, BLAKE2b and the successful scalar caller).
+//! BLAKE2b and the Argon2 core are implemented locally, without dependencies.
+//! See the [project guide](https://github.com/microsoft/argon2-rs#readme)
+//! and [verification guide](https://github.com/microsoft/argon2-rs/blob/main/verus/README.md).
+//! To reproduce a release's proofs, check out the `git.sha1` recorded in the
+//! crate archive's `.cargo_vcs_info.json` and use that revision's guide.
 //!
-//! BLAKE2b and the Argon2 core are implemented locally. SIMD backends share
-//! reference indexing, and selected scalar/indexing functions have same-source
-//! Verus contracts. This is not an end-to-end correctness or timing proof.
+//! # Formal verification boundary
+//!
+//! For accepted inputs, a successful forced-scalar caller returns exactly the
+//! whole-hash model's tag. This does not establish model/RFC fidelity, allocation
+//! success, SIMD correctness, public-wrapper behavior, constant time, zeroization
+//! or cryptographic security. Automatic dispatch can select unproved SIMD code.
+//! Request the scalar path explicitly with:
+//!
+//! ```
+//! use argon2_verus::{Argon2, Backend};
+//! let hasher = Argon2::default().with_backend(Backend::Scalar);
+//! ```
+//!
+//! # Password storage and resource policy
+//!
+//! Prefer [`Algorithm::Argon2id`] and [`Version::V0x13`] for new password hashes.
+//! Generate a fresh random salt for each stored password (RFC 9106 recommends
+//! 16 bytes), and retain the algorithm, version, costs, salt and tag.
+//! This crate returns raw bytes: it does not generate salts, encode PHC strings,
+//! or compare stored tags. Use a vetted constant-time comparison over the full
+//! expected tag, not ordinary slice equality.
+//!
+//! Enforce application limits on memory, passes, input/output lengths and
+//! concurrent requests before hashing untrusted parameters. Algorithm-valid
+//! parameters can still exhaust resources, and not every OOM is recoverable.
+//! Lanes are processed sequentially; [`Params::parallelism`] does not spawn threads.
+//! [`Params::DEFAULT`] is a convenience configuration, not security advice.
+//!
+//! Owned working memory and explicit scratch are wiped on drop, but this cannot
+//! erase every compiler-generated copy, register or spill. Callers must manage
+//! their own inputs and tags. Drop does not run on process abort.
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
@@ -84,6 +114,9 @@ impl Default for Argon2 {
 
 impl Argon2 {
     /// Creates a hasher for the given algorithm, version, and parameters.
+    ///
+    /// This stores the configuration without validating it. Validation occurs
+    /// when a hashing method is called. Apply deployment resource limits first.
     pub fn new(algorithm: Algorithm, version: Version, params: Params) -> Self {
         Self { algorithm, version, params, backend: None }
     }
@@ -94,6 +127,8 @@ impl Argon2 {
     /// backend is unavailable on this CPU, hashing silently falls back to
     /// [`Backend::Scalar`]. Check [`Backend::is_available`] first if fallback
     /// is not acceptable. This is useful for testing and controlled benchmarks.
+    /// Request [`Backend::Scalar`] to select the path modeled by Verus; the
+    /// default automatic dispatch can choose SIMD outside that proof.
     pub fn with_backend(mut self, backend: Backend) -> Self {
         self.backend = Some(backend);
         self
@@ -103,6 +138,10 @@ impl Argon2 {
     ///
     /// `salt` must contain 8..=u32::MAX bytes and `out` must contain at least
     /// 4 bytes. The output length determines the tag length.
+    /// Input/output lengths must fit in `u32` and platform allocation limits.
+    /// For password storage, use a fresh random salt, retain the configuration,
+    /// and compare stored tags in constant time. This method supplies none of
+    /// that policy; see the [crate-level guidance](crate).
     ///
     /// # Errors
     ///

@@ -4,13 +4,13 @@
 [![Minimum Rust version](https://img.shields.io/badge/rustc-1.88%2B-blue.svg)](https://github.com/microsoft/argon2-rs/blob/main/Cargo.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/microsoft/argon2-rs/blob/main/LICENSE)
 
-A dependency-free Rust implementation of the password hasher [Argon2 algorithm](https://github.com/P-H-C/phc-winner-argon2). It reproduces byte-level behavior of the reference C++ implementation that won the Password Hashing Competition (PHC).
+A dependency-free Rust implementation of the password hasher [Argon2 algorithm](https://github.com/P-H-C/phc-winner-argon2). It reproduces byte-level behavior of the reference C implementation that won the Password Hashing Competition (PHC).
 
 It implements the existing Argon2 spec and contains an in-tree implementation of required BLAKE2b avoiding external dependencies; combines runtime-dispatched SIMD for performance with same-source [Verus](https://github.com/verus-lang/verus) verification of scalar Argon2, from H0 through the successful returned result (aka tag).
 
 Proven machine-checked functional-correctness theorem stated as: for API-accepted inputs and parameters, if the forced-scalar caller is successful (aka returns `Ok(())`), its output equals the tag computed by the whole-hash model derived from the Argon2 specification.
 
-The consolidated Cargo-Verus application proof passes 209 obligations with zero errors. SIMD paths are not covered by that theorem. See the [verification guide](verus/README.md) and [human audit map](specs/README.md).
+The consolidated Cargo-Verus application proof passes 209 obligations with zero errors. SIMD paths are not covered by that theorem. See the [verification guide](https://github.com/microsoft/argon2-rs/blob/main/verus/README.md) and [human audit map](specs/README.md). Select `.with_backend(Backend::Scalar)` to use the scalar path; automatic dispatch can select SIMD.
 
 ## Attribution And Security Reporting
 
@@ -46,7 +46,7 @@ and [RFC 9106](https://www.rfc-editor.org/rfc/rfc9106.html).
 
 ## Usage
 
-Version 0.1.0 has not yet been published to crates.io. Once released, add it as:
+For the crates.io release, use:
 
 ```toml
 [dependencies]
@@ -58,9 +58,9 @@ use argon2_verus::{Algorithm, Argon2, Params, Version};
 
 fn main() -> Result<(), argon2_verus::Error> {
     let params = Params {
-    parallelism: 4,
-    memory_kib: 64 * 1024,
-    iterations: 3,
+        parallelism: 4,
+        memory_kib: 64 * 1024,
+        iterations: 3,
     };
     let hasher = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
     let mut tag = [0u8; 32];
@@ -122,8 +122,23 @@ supported.
 
 ## Mathematical proofs
 
-Run verification from this source checkout with the pinned upstream Verus
-build described in [verus/README.md](verus/README.md):
+Verification requires a repository checkout: Cargo excludes the nested
+`verus/` package, its manifest/lockfile and toolchain guide from the crates.io
+archive. The archive retains the annotated runtime code, specs and proof helpers.
+Use the [verification guide](https://github.com/microsoft/argon2-rs/blob/main/verus/README.md)
+at the same revision as the release, not an arbitrary later `main`.
+
+For an unpacked crates.io archive, obtain its exact source revision from
+`.cargo_vcs_info.json` (`git.sha1`), then:
+
+```sh
+git clone https://github.com/microsoft/argon2-rs.git
+cd argon2-rs
+git checkout --detach <git.sha1-from-the-crate-archive>
+```
+
+Follow `verus/README.md` in that checkout to install/select the pinned
+verifier and solver, then run:
 
 ```sh
 cargo verus verify --manifest-path verus/Cargo.toml --locked
@@ -174,6 +189,10 @@ CPU. Whole-hash differential tests compare backends across 108 combinations
 covering all variants, both versions, one to four lanes, rounded memory sizes,
 and empty, ordinary, and long passwords. Backend agreement is not an independent
 reference oracle, and the RFC vectors do not cover legacy version `0x10`.
+An additional 168 [reference-C vectors](tests/reference/README.md) cover both
+versions and all variants, output lengths 4, 16, 32, 63, 64, 65 and 96 bytes,
+rounded memory, empty/long passwords, secrets and associated data.
+They run on each available backend without a C dependency in ordinary tests.
 
 Unit tests cover BLAKE2b vectors, block-compression properties, API behavior,
 and SIMD/scalar agreement on 2,048 pseudo-random block triples per supported
@@ -181,6 +200,7 @@ kernel, with and without XOR. Run from the crate root:
 
 ```sh
 cargo test --test kat
+cargo test --test reference_vectors
 cargo test --doc
 cargo test --release
 ```
@@ -191,11 +211,19 @@ checks portable ARM64 compilation, including test targets, with warnings treated
 as errors. A build-only job is not an ARM64 runtime test,
 and SIMD tests run only for instruction sets available to each runner.
 
-Reference-C differential fuzzing has been run in a separate native harness;
-the last recorded short run completed 4,335 executions in 301 seconds without
-divergence. That harness is not shipped in this crate, and its native ASan run
-does not establish full Rust instrumentation or exhaustive coverage. The
-reproducible tests shipped here are the KAT, unit, and backend tests above.
+A historical external reference-C fuzzing run was reported as 4,335 executions
+in 301 seconds without divergence. Its harness and complete build provenance
+are not available here, so this is not reproducible release evidence or a
+current fuzzing gate. A native ASan run also does not establish full Rust
+instrumentation. The pinned vector generator and tests above are reproducible;
+they are deterministic regression tests, not fuzzing or exhaustive coverage.
+
+## Contributing and Release Assurance
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for validation, release/ownership checks,
+and the `cargo-aprz` / `cargo-vet` review workflow. A dependency appraisal,
+empty dependency graph, or passing formal proof is not a security certification.
+No independent `safe-to-deploy` audit is claimed by this repository.
 
 ## Performance
 
@@ -217,5 +245,4 @@ normal initialized allocation, without platform-specific huge-page requests.
 ## License
 
 This crate is licensed under the MIT License. The complete license text is in
-[LICENSE](LICENSE). The `0.1.0` package is prepared for crates.io, but
-has not yet been published.
+[LICENSE](LICENSE).
